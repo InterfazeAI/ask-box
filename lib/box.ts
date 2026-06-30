@@ -64,6 +64,14 @@ export async function exchangeCodeForTokens(code: string): Promise<BoxTokens> {
 }
 
 export async function getValidAccessToken(): Promise<string> {
+  // Dev/testing shortcut: a Box Developer Token (Console → app → Configuration →
+  // "Generate Developer Token", valid ~60 min) bypasses the OAuth flow entirely.
+  // When BOX_DEVELOPER_TOKEN is set we use it directly; regenerate it when it expires.
+  const devToken = process.env.BOX_DEVELOPER_TOKEN;
+  if (devToken) {
+    return devToken;
+  }
+
   const tokens = await getBoxTokens();
   if (!tokens) {
     throw new Error("No Box tokens found. Complete the OAuth flow first.");
