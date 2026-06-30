@@ -12,7 +12,18 @@ export async function POST(req: NextRequest) {
   if (!(await verifyQstash(req.headers.get("upstash-signature"), body))) {
     return NextResponse.json({ error: "bad signature" }, { status: 403 });
   }
-  const { fileId } = JSON.parse(body) as { fileId: string };
+  let fileId: string;
+  try {
+    const parsed = JSON.parse(body) as { fileId?: string };
+    if (!parsed.fileId) {
+      throw new Error("missing fileId");
+    }
+    fileId = parsed.fileId;
+  } catch {
+    // Malformed or incomplete body: tell QStash not to retry (400), not a transient failure.
+    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  }
+
   let name = fileId;
   try {
     await setFileStatus({ fileId, name, stage: "extracting", updatedAt: Date.now() });
