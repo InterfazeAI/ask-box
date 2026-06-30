@@ -9,7 +9,7 @@ export async function upsertChunks(
   items: { vector: number[]; meta: ChunkMeta }[],
 ): Promise<void> {
   // idempotent: remove any prior chunks for this file
-  const priorIds = items.map((_, i) => `${fileId}:${i}`);
+  const priorIds = items.map((it) => `${it.meta.fileId}:${it.meta.chunkIdx}`);
   await index.delete(priorIds).catch(() => {});
   await index.upsert(
     items.map((it) => ({
