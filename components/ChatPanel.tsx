@@ -46,9 +46,12 @@ function StreamAutoScroll({ signal, active }: { signal: string; active: boolean 
   return null;
 }
 
-export default function ChatPanel() {
+export default function ChatPanel({
+  api = "/api/chat",
+  className,
+}: { api?: string; className?: string } = {}) {
   const { messages, sendMessage, status, error } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport: new DefaultChatTransport({ api }),
   });
   const [input, setInput] = useState("");
 
@@ -69,7 +72,10 @@ export default function ChatPanel() {
 
   return (
     <section
-      className="panel animate-fade-up flex h-[640px] max-h-[80vh] flex-col overflow-hidden"
+      className={
+        className ??
+        "panel animate-fade-up flex h-[640px] max-h-[80vh] flex-col overflow-hidden"
+      }
       style={{ animationDelay: "320ms" }}
     >
       <header className="flex items-center justify-between gap-3 border-b border-white/8 px-5 py-4">
