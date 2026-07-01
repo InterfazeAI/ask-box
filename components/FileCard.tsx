@@ -120,7 +120,13 @@ function Rail({ status }: { status: FileStatus }) {
   );
 }
 
-export default function FileCard({ status }: { status: FileStatus }) {
+export default function FileCard({
+  status,
+  onDelete,
+}: {
+  status: FileStatus;
+  onDelete?: () => void;
+}) {
   const isError = status.stage === "error";
   const meta = STAGE_META[status.stage];
 
@@ -152,10 +158,24 @@ export default function FileCard({ status }: { status: FileStatus }) {
         </div>
 
         {/* status: small dot + label, no fill (design.md) */}
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-zinc-300">
-          <Dot className={meta.dot} pulse={meta.pulse} />
-          {meta.label}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-300">
+            <Dot className={meta.dot} pulse={meta.pulse} />
+            {meta.label}
+          </span>
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              title="Delete from Box"
+              aria-label="Delete from Box"
+              className="flex size-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-all hover:bg-status-red/10 hover:text-status-red group-hover:opacity-100"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* the animated pipeline rail */}

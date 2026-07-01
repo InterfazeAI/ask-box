@@ -204,6 +204,69 @@ export async function getFolderTree(rootFolderId: string): Promise<TreeNode[]> {
   return walk(rootFolderId, 0);
 }
 
+/** Upload a file into a Box folder. Returns the new Box file id. */
+export async function uploadFileToBox(
+  parentId: string,
+  name: string,
+  bytes: ArrayBuffer,
+): Promise<{ id: string; name: string }> {
+  const token = await getValidAccessToken();
+  const form = new FormData();
+  form.append(
+    "attributes",
+    JSON.stringify({ name, parent: { id: parentId } }),
+  );
+  form.append("file", new Blob([bytes]), name);
+
+  const res = await fetch("https://upload.box.com/api/2.0/files/content", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error(`Box upload failed (${res.status}): ${await res.text()}`);
+  }
+  const data = (await res.json()) as {
+    entries?: { id: string; name: string }[];
+  };
+  const entry = data.entries?.[0];
+  if (!entry) throw new Error("Box upload returned no file");
+  return { id: entry.id, name: entry.name };
+}
+
+/** Delete a Box file (moves it to trash). Treats 404 as already-gone. */
+export async function deleteBoxFile(fileId: string): Promise<void> {
+  const token = await getValidAccessToken();
+  const res = await fetch(`https://api.box.com/2.0/files/${fileId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Box delete failed (${res.status}): ${await res.text()}`);
+  }
+}
+
+/** Create a subfolder in Box. Returns the new folder id. */
+export async function createBoxFolder(
+  parentId: string,
+  name: string,
+): Promise<{ id: string; name: string }> {
+  const token = await getValidAccessToken();
+  const res = await fetch("https://api.box.com/2.0/folders", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, parent: { id: parentId } }),
+  });
+  if (!res.ok) {
+    throw new Error(`Box folder create failed (${res.status}): ${await res.text()}`);
+  }
+  const data = (await res.json()) as { id: string; name: string };
+  return { id: data.id, name: data.name };
+}
+
 export async function createWebhook(folderId: string): Promise<string> {
   const accessToken = await getValidAccessToken();
   const client = clientFromAccessToken(accessToken);

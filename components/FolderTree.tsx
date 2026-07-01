@@ -1,6 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { FileStatus } from "@/lib/redis";
 import type { TreeNode } from "@/lib/box";
@@ -12,11 +22,57 @@ type StreamEvent = SnapshotEvent | UpdateEvent;
 
 const POLL_MS = 15000;
 
+type TreeActions = {
+  requestUpload: (parentId: string) => void;
+  startNewFolder: (parentId: string, parentName: string) => void;
+  deleteFile: (id: string, name: string) => void;
+};
+const TreeCtx = createContext<TreeActions | null>(null);
+
 function countFiles(nodes: TreeNode[]): number {
   let c = 0;
   for (const n of nodes) c += n.type === "file" ? 1 : countFiles(n.children);
   return c;
 }
+
+/* ── small ghost icon button ──────────────────────────────────────────────── */
+function IconButton({
+  title,
+  onClick,
+  children,
+  hoverOnly = false,
+}: {
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+  hoverOnly?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={`flex size-7 items-center justify-center rounded-lg border border-white/8 bg-white/[0.03] text-zinc-400 transition-all hover:border-white/15 hover:bg-white/[0.07] hover:text-zinc-200 ${
+        hoverOnly ? "opacity-0 group-hover:opacity-100" : ""
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+const IconUpload = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M5 20h14" />
+  </svg>
+);
+const IconFolderPlus = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v4M10 13h4" />
+  </svg>
+);
 
 /* ── tree rows (module-level so folder collapse state survives re-renders) ── */
 
@@ -29,13 +85,17 @@ function FileRow({
   depth: number;
   status?: FileStatus;
 }) {
+  const actions = useContext(TreeCtx);
   const pad = { paddingLeft: depth * 18 };
 
   // Indexed / processing / errored files get the full pipeline card.
   if (status) {
     return (
       <div style={pad}>
-        <FileCard status={status} />
+        <FileCard
+          status={status}
+          onDelete={() => actions?.deleteFile(node.id, node.name)}
+        />
       </div>
     );
   }
@@ -44,7 +104,7 @@ function FileRow({
   return (
     <div
       style={pad}
-      className="flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.01] px-4 py-3"
+      className="group flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.01] px-4 py-3"
     >
       <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-zinc-600">
         <svg viewBox="0 0 20 20" fill="currentColor" className="size-4.5" aria-hidden="true">
@@ -56,6 +116,16 @@ function FileRow({
         <span className="size-2 rounded-full bg-status-gray" />
         Not indexed
       </span>
+      <button
+        onClick={() => actions?.deleteFile(node.id, node.name)}
+        title="Delete from Box"
+        aria-label="Delete from Box"
+        className="flex size-6 shrink-0 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-all hover:bg-status-red/10 hover:text-status-red group-hover:opacity-100"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -70,33 +140,51 @@ function FolderRow({
   statuses: Map<string, FileStatus>;
 }) {
   const [open, setOpen] = useState(true);
+  const actions = useContext(TreeCtx);
   const count = countFiles(node.children);
 
   return (
     <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
+      <div
         style={{ paddingLeft: 10 + depth * 18 }}
-        className="flex w-full items-center gap-2 rounded-xl py-2.5 pr-3 text-left transition-colors hover:bg-white/[0.04]"
+        className="group flex items-center gap-2 rounded-xl py-2.5 pr-2 transition-colors hover:bg-white/[0.04]"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.2}
-          className={`size-3.5 shrink-0 text-zinc-500 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
-          aria-hidden="true"
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
-        </svg>
-        <svg viewBox="0 0 24 24" fill="currentColor" className="size-4 shrink-0 text-zinc-400" aria-hidden="true">
-          <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
-        </svg>
-        <span className="truncate text-sm font-medium text-zinc-200">{node.name}</span>
-        <span className="ml-auto shrink-0 font-mono text-[11px] text-zinc-500">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.2}
+            className={`size-3.5 shrink-0 text-zinc-500 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+          </svg>
+          <svg viewBox="0 0 24 24" fill="currentColor" className="size-4 shrink-0 text-zinc-400" aria-hidden="true">
+            <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
+          </svg>
+          <span className="truncate text-sm font-medium text-zinc-200">{node.name}</span>
+        </button>
+
+        <span className="shrink-0 font-mono text-[11px] text-zinc-500">
           {count} file{count === 1 ? "" : "s"}
         </span>
-      </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <IconButton title="Upload file here" hoverOnly onClick={() => actions?.requestUpload(node.id)}>
+            {IconUpload}
+          </IconButton>
+          <IconButton
+            title="New subfolder"
+            hoverOnly
+            onClick={() => actions?.startNewFolder(node.id, node.name)}
+          >
+            {IconFolderPlus}
+          </IconButton>
+        </div>
+      </div>
 
       {open &&
         (node.children.length ? (
@@ -155,7 +243,37 @@ export default function FolderTree() {
   const [statuses, setStatuses] = useState<Map<string, FileStatus>>(new Map());
   const [connected, setConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [newFolder, setNewFolder] = useState<{ parentId: string; parentName: string } | null>(null);
+  const [newFolderName, setNewFolderName] = useState("");
+
   const inFlight = useRef(false);
+  const mounted = useRef(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadParent = useRef<string>("0");
+
+  useEffect(() => () => void (mounted.current = false), []);
+
+  const runSync = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/box/tree", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { tree?: TreeNode[]; statuses?: FileStatus[] };
+      if (!mounted.current) return;
+      if (data.tree) setTree(data.tree);
+      if (Array.isArray(data.statuses)) {
+        setStatuses(new Map(data.statuses.map((s) => [s.fileId, s])));
+      }
+    } catch {
+      // transient; next tick retries
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setSyncing(false);
+    }
+  }, []);
 
   // Live status stream (drives the pipeline animation between polls).
   useEffect(() => {
@@ -181,53 +299,92 @@ export default function FolderTree() {
     return () => source.close();
   }, []);
 
-  // Auto-sync: poll the tree endpoint (lists Box, prunes deletions, queues new).
+  // Auto-sync poll.
   useEffect(() => {
-    let active = true;
-    async function poll() {
-      if (inFlight.current) return;
-      inFlight.current = true;
-      setSyncing(true);
-      try {
-        const res = await fetch("/api/box/tree", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          tree?: TreeNode[];
-          statuses?: FileStatus[];
-        };
-        if (!active) return;
-        if (data.tree) setTree(data.tree);
-        // Authoritative snapshot — also drops pruned ghosts the SSE can't signal.
-        if (Array.isArray(data.statuses)) {
-          setStatuses(new Map(data.statuses.map((s) => [s.fileId, s])));
+    runSync();
+    const id = setInterval(runSync, POLL_MS);
+    return () => clearInterval(id);
+  }, [runSync]);
+
+  const actions = useMemo<TreeActions>(
+    () => ({
+      requestUpload: (parentId) => {
+        uploadParent.current = parentId;
+        fileInputRef.current?.click();
+      },
+      startNewFolder: (parentId, parentName) => {
+        setNewFolder({ parentId, parentName });
+        setNewFolderName("");
+      },
+      deleteFile: async (id, name) => {
+        if (!window.confirm(`Delete "${name}" from Box? It will be moved to Box trash.`)) return;
+        setBusy(true);
+        try {
+          await fetch(`/api/box/file/${encodeURIComponent(id)}`, { method: "DELETE" });
+        } finally {
+          setBusy(false);
+          runSync();
         }
-      } catch {
-        // transient; next tick retries
-      } finally {
-        inFlight.current = false;
-        if (active) setSyncing(false);
-      }
+      },
+    }),
+    [runSync],
+  );
+
+  async function onFilesSelected(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("parentId", uploadParent.current);
+      Array.from(list).forEach((f) => form.append("files", f));
+      await fetch("/api/box/upload", { method: "POST", body: form });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setBusy(false);
+      runSync();
     }
-    poll();
-    const id = setInterval(poll, POLL_MS);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
+  }
+
+  async function submitNewFolder(e: FormEvent) {
+    e.preventDefault();
+    const name = newFolderName.trim();
+    if (!name || !newFolder) return;
+    setBusy(true);
+    try {
+      await fetch("/api/box/folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, parentId: newFolder.parentId }),
+      });
+    } finally {
+      setBusy(false);
+      setNewFolder(null);
+      setNewFolderName("");
+      runSync();
+    }
+  }
 
   const totalFiles = tree ? countFiles(tree) : 0;
   const activeCount = Array.from(statuses.values()).filter(
     (s) => s.stage === "extracting" || s.stage === "embedding",
   ).length;
+  const working = busy || syncing;
 
   return (
     <section
       className="panel animate-fade-up flex h-full flex-col overflow-hidden"
       style={{ animationDelay: "220ms" }}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => onFilesSelected(e.target.files)}
+      />
+
       <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-[15px] font-medium tracking-tight text-white">
             Box workspace
           </h2>
@@ -239,58 +396,113 @@ export default function FolderTree() {
                 }`}
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-zinc-300">
-          {syncing ? (
-            <>
-              <svg viewBox="0 0 24 24" fill="none" className="size-3 animate-spin text-zinc-400" aria-hidden="true">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Syncing
-            </>
-          ) : (
-            <>
-              <span className="relative flex size-2">
-                {connected && (
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-green opacity-70" />
-                )}
-                <span
-                  className={`relative inline-flex size-2 rounded-full ${
-                    connected ? "bg-status-green" : "bg-status-amber animate-breathe"
-                  }`}
-                />
-              </span>
-              Live
-            </>
-          )}
-        </span>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <IconButton title="Upload to Box" onClick={() => actions.requestUpload("0")}>
+            {IconUpload}
+          </IconButton>
+          <IconButton title="New folder" onClick={() => actions.startNewFolder("0", "Box")}>
+            {IconFolderPlus}
+          </IconButton>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-zinc-300">
+            {working ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" className="size-3 animate-spin text-zinc-400" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                {busy ? "Working" : "Syncing"}
+              </>
+            ) : (
+              <>
+                <span className="relative flex size-2">
+                  {connected && (
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-green opacity-70" />
+                  )}
+                  <span
+                    className={`relative inline-flex size-2 rounded-full ${
+                      connected ? "bg-status-green" : "bg-status-amber animate-breathe"
+                    }`}
+                  />
+                </span>
+                Live
+              </>
+            )}
+          </span>
+        </div>
       </header>
 
-      {tree === null ? (
-        <div className="flex flex-1 items-center justify-center px-8 py-16">
-          <span className="font-mono text-xs text-zinc-600">Reading your Box folder…</span>
-        </div>
-      ) : totalFiles === 0 && tree.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center px-8 py-16 text-center">
-          <div className="relative mb-5">
-            <div className="absolute inset-0 -z-10 rounded-full bg-white/10 blur-2xl" />
-            <div className="flex size-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-zinc-400">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="size-6" aria-hidden="true">
-                <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
-              </svg>
-            </div>
-          </div>
-          <p className="text-sm font-medium text-zinc-200">Your Box is empty</p>
-          <p className="mt-1.5 max-w-xs text-sm text-zinc-500">
-            Drop a file into a Box folder — Interfaze picks it up automatically and
-            streams it through the pipeline here.
+      <div className="flex-1 overflow-y-auto px-3 py-4">
+        {newFolder && (
+          <form
+            onSubmit={submitNewFolder}
+            className="mb-3 flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="size-4 shrink-0 text-zinc-400" aria-hidden="true">
+              <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
+            </svg>
+            <input
+              autoFocus
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setNewFolder(null);
+                  setNewFolderName("");
+                }
+              }}
+              placeholder={`New folder in ${newFolder.parentName}…`}
+              className="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-600"
+            />
+            <button
+              type="submit"
+              disabled={!newFolderName.trim()}
+              className="rounded-lg bg-white px-3 py-1 text-xs font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Create
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNewFolder(null);
+                setNewFolderName("");
+              }}
+              className="rounded-lg px-2 py-1 text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              Cancel
+            </button>
+          </form>
+        )}
+
+        {tree === null ? (
+          <p className="py-16 text-center font-mono text-xs text-zinc-600">
+            Reading your Box folder…
           </p>
-        </div>
-      ) : (
-        <div className="flex-1 overflow-y-auto px-3 py-4">
-          <TreeRows nodes={tree} depth={0} statuses={statuses} />
-        </div>
-      )}
+        ) : tree.length === 0 ? (
+          !newFolder && (
+            <div className="flex flex-col items-center justify-center px-8 py-14 text-center">
+              <div className="relative mb-5">
+                <div className="absolute inset-0 -z-10 rounded-full bg-white/10 blur-2xl" />
+                <div className="flex size-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-zinc-400">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="size-6" aria-hidden="true">
+                    <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-sm font-medium text-zinc-200">Your Box is empty</p>
+              <p className="mt-1.5 max-w-xs text-sm text-zinc-500">
+                Use <span className="text-zinc-300">Upload</span> or{" "}
+                <span className="text-zinc-300">New folder</span> above — everything you
+                add is saved straight to Box and indexed by Interfaze.
+              </p>
+            </div>
+          )
+        ) : (
+          <TreeCtx.Provider value={actions}>
+            <TreeRows nodes={tree} depth={0} statuses={statuses} />
+          </TreeCtx.Provider>
+        )}
+      </div>
     </section>
   );
 }
