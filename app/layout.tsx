@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 
 export const metadata: Metadata = {
-  title: "Box RAG Demo",
-  description: "RAG chatbot over Box-hosted documents",
+  title: "Box × Interfaze — Document Intelligence",
+  description:
+    "Integration demo: Interfaze extracts, embeds, and indexes Box documents in real time for instant RAG.",
 };
 
 export default function RootLayout({
@@ -12,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`dark ${GeistSans.variable} ${GeistMono.variable}`}>
       <body>{children}</body>
     </html>
   );

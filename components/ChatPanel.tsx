@@ -1,135 +1,188 @@
 "use client";
 
-import { useChat } from "ai/react";
-import { useEffect, useRef } from "react";
+import { useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import { ArrowUpIcon, MessageCircleDashedIcon } from "lucide-react";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
+import { Message, MessageContent } from "@/components/ui/message";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Marker, MarkerContent } from "@/components/ui/marker";
+import Markdown from "@/components/Markdown";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
+
+function messageText(parts: UIMessage["parts"]): string {
+  return parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+}
 
 export default function ChatPanel() {
-  const { messages, input, handleInputChange, handleSubmit, status, error } =
-    useChat({ api: "/api/chat" });
+  const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
+  });
+  const [input, setInput] = useState("");
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const isStreaming = status === "submitted" || status === "streaming";
+  const isBusy = status === "submitted" || status === "streaming";
+  const waiting =
+    isBusy && messages[messages.length - 1]?.role === "user";
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, isStreaming]);
+  function send() {
+    const text = input.trim();
+    if (!text || isBusy) return;
+    sendMessage({ text });
+    setInput("");
+  }
 
   return (
-    <div className="flex h-full min-h-[480px] flex-col rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
-        {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-400 ring-1 ring-indigo-100">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                className="h-6 w-6"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z"
-                />
-              </svg>
-            </div>
-            <p className="max-w-xs text-sm text-gray-500">
-              Ask a question about your indexed Box documents.
-            </p>
-          </div>
-        ) : (
-          messages.map((message) => {
-            const isUser = message.role === "user";
-            return (
-              <div
-                key={message.id}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
-                    isUser
-                      ? "rounded-br-sm bg-gray-900 text-white"
-                      : "rounded-bl-sm border border-gray-200 bg-gray-50 text-gray-800"
-                  }`}
-                >
-                  {message.content}
-                </div>
-              </div>
-            );
-          })
-        )}
+    <section
+      className="panel animate-fade-up flex h-[640px] max-h-[80vh] flex-col overflow-hidden"
+      style={{ animationDelay: "320ms" }}
+    >
+      <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+        <div>
+          <h2 className="text-[15px] font-medium tracking-tight text-white">
+            Interfaze
+          </h2>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-zinc-400">
+          RAG
+        </span>
+      </header>
 
-        {isStreaming &&
-          (messages.length === 0 ||
-            messages[messages.length - 1]?.role === "user") && (
-            <div className="flex justify-start">
-              <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-gray-200 bg-gray-50 px-4 py-3">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
-              </div>
-            </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+          {messages.length === 0 ? (
+            <Empty className="h-full">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <MessageCircleDashedIcon />
+                </EmptyMedia>
+                <EmptyTitle>Chat with your Box docs</EmptyTitle>
+                <EmptyDescription>
+                  Ask a question about your indexed Box documents.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <MessageScroller className="h-full">
+              <MessageScrollerViewport className="p-4">
+                <MessageScrollerContent aria-busy={isBusy} className="justify-end">
+                  {messages.map((m, i) => {
+                    const isUser = m.role === "user";
+                    return (
+                      <MessageScrollerItem
+                        key={m.id}
+                        messageId={m.id}
+                        scrollAnchor={!waiting && !error && i === messages.length - 1}
+                      >
+                        <Message align={isUser ? "end" : "start"}>
+                          <MessageContent>
+                            <Bubble
+                              align={isUser ? "end" : "start"}
+                              variant={isUser ? "default" : "muted"}
+                            >
+                              <BubbleContent
+                                className={isUser ? "whitespace-pre-wrap" : ""}
+                              >
+                                {isUser ? (
+                                  messageText(m.parts)
+                                ) : (
+                                  <Markdown>{messageText(m.parts)}</Markdown>
+                                )}
+                              </BubbleContent>
+                            </Bubble>
+                          </MessageContent>
+                        </Message>
+                      </MessageScrollerItem>
+                    );
+                  })}
+
+                  {waiting && (
+                    <MessageScrollerItem messageId="__thinking__" scrollAnchor>
+                      <Message align="start">
+                        <MessageContent>
+                          <Bubble align="start" variant="muted">
+                            <BubbleContent>
+                              <span className="shimmer">Thinking…</span>
+                            </BubbleContent>
+                          </Bubble>
+                        </MessageContent>
+                      </Message>
+                    </MessageScrollerItem>
+                  )}
+
+                  {error && (
+                    <MessageScrollerItem messageId="__error__" scrollAnchor>
+                      <Marker className="text-destructive">
+                        <MarkerContent>
+                          Something went wrong: {error.message}
+                        </MarkerContent>
+                      </Marker>
+                    </MessageScrollerItem>
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+
+              <MessageScrollerButton />
+            </MessageScroller>
           )}
-
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-            Something went wrong: {error.message}
-          </div>
-        )}
+        </MessageScrollerProvider>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="flex items-center gap-2 border-t border-gray-200 p-3"
-      >
-        <input
-          value={input}
-          onChange={handleInputChange}
-          placeholder="Ask about your documents..."
-          disabled={isStreaming}
-          className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/5 disabled:cursor-not-allowed disabled:opacity-60"
-        />
-        <button
-          type="submit"
-          disabled={isStreaming || input.trim().length === 0}
-          className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+      <div className="border-t border-white/[0.06] p-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send();
+          }}
+          className="w-full"
         >
-          {isStreaming ? (
-            <svg
-              className="h-4 w-4 animate-spin"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-              />
-            </svg>
-          ) : (
-            <svg
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="h-4 w-4"
-              aria-hidden="true"
-            >
-              <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
-            </svg>
-          )}
-        </button>
-      </form>
-    </div>
+          <InputGroup>
+            <InputGroupTextarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about your documents..."
+              disabled={isBusy}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            <InputGroupAddon align="block-end">
+              <InputGroupButton
+                type="submit"
+                variant="default"
+                size="icon-sm"
+                className="ml-auto"
+                disabled={isBusy || input.trim().length === 0}
+                aria-label="Send message"
+              >
+                <ArrowUpIcon />
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
+        </form>
+      </div>
+    </section>
   );
 }

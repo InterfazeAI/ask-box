@@ -1,3 +1,293 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Interactive accent (design.md) — blue reserved for focus rings only */
+  --color-accent-blue: #0072f5;
+
+  /* Status indicator colors (design.md) — used ONLY as small dots */
+  --color-status-active: #ff990a;
+  --color-status-green: #45a557;
+  --color-status-amber: #ff990a;
+  --color-status-red: #e5484d;
+  --color-status-gray: #8f8f8f;
+
+  /* Radius scale */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Geist type system */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Elevation — glass panels + accent glow */
+  --shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-glass: 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 24px 48px -24px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Light (kept for completeness; app runs in dark) */
+:root {
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f2f2f2;
+  --secondary-foreground: #171717;
+  --muted: #f2f2f2;
+  --muted-foreground: #8f8f8f;
+  --accent: #ebebeb;
+  --accent-foreground: #171717;
+  --destructive: #e5484d;
+  --border: rgba(0, 0, 0, 0.08);
+  --input: rgba(0, 0, 0, 0.08);
+  --ring: transparent;
+  --radius: 0.75rem;
+  --chart-1: #0062d1;
+  --chart-2: #45a557;
+  --chart-3: #ff990a;
+  --chart-4: #7820bc;
+  --chart-5: #52aeff;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #171717;
+  --sidebar-primary: #171717;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #ebebeb;
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: transparent;
+}
+
+/* Cinematic dark stage */
+.dark {
+  color-scheme: dark;
+  --background: #060608;
+  --foreground: #f4f4f5;
+  --card: #0c0c0f;
+  --card-foreground: #f4f4f5;
+  --popover: #0c0c0f;
+  --popover-foreground: #f4f4f5;
+  --primary: #ffffff;
+  --primary-foreground: #060608;
+  --secondary: #16161a;
+  --secondary-foreground: #f4f4f5;
+  --muted: #16161a;
+  --muted-foreground: #8a8a94;
+  --accent: #1c1c22;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f87171;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: transparent;
+  --radius: 0.75rem;
+  --chart-1: #0062d1;
+  --chart-2: #45a557;
+  --chart-3: #ff990a;
+  --chart-4: #7820bc;
+  --chart-5: #52aeff;
+  --sidebar: #060608;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #060608;
+  --sidebar-accent: #1c1c22;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: transparent;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  /* No focus rings anywhere — kill native outlines and Tailwind ring shadows */
+  *:focus,
+  *:focus-visible {
+    outline: none !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Spotlight — a single achromatic stage light from top-center */
+    background-color: #060608;
+    background-image: radial-gradient(
+      900px 520px at 50% -8%,
+      rgba(255, 255, 255, 0.06),
+      transparent 62%
+    );
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+  /* Faint film grain for cinematic texture */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* Aggressive negative tracking on display headings */
+  h1 {
+    letter-spacing: -0.04em;
+  }
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ── Panel chrome: frosted glass slab ───────────────────────────── */
+.panel {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.028),
+    rgba(255, 255, 255, 0.008)
+  );
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ── Keynote entrance: staggered fade-up ────────────────────────── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-up {
+  opacity: 0;
+  animation: fade-up 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Gradient / shimmer text ────────────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(176deg, #ffffff 8%, #aeb6c4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes shimmer-text {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 20%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 1.6s linear infinite;
+}
+
+/* ── Pipeline rail: sheen sweeping the full active fill, dot → dot ── */
+/* Position-based so the shine traverses the ENTIRE fill width (a translateX
+   percentage is relative to the element, not the container, so it fell short). */
+@keyframes rail-sweep {
+  0% {
+    background-position: -40% 0;
+  }
+  100% {
+    background-position: 140% 0;
+  }
+}
+.rail-sweep {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.9) 50%,
+    transparent 100%
+  );
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: rail-sweep 1.5s ease-in-out infinite;
+}
+
+/* ── Row / card entrance: gentle ease-in-out reveal ─────────────── */
+@keyframes enter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-enter {
+  animation: enter 0.5s ease-in-out both;
+}
+
+/* Slow breathing glow for hero / status accents */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animate-breathe {
+  animation: breathe 3.2s ease-in-out infinite;
+}

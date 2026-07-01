@@ -148,6 +148,62 @@ export async function listFolderFilesRecursive(
   return collectFiles(listPage, rootFolderId);
 }
 
+export type TreeFile = { type: "file"; id: string; name: string };
+export type TreeFolder = {
+  type: "folder";
+  id: string;
+  name: string;
+  children: TreeNode[];
+};
+export type TreeNode = TreeFile | TreeFolder;
+
+/**
+ * Build the Box folder tree (folders + files) starting at rootFolderId, so the
+ * dashboard can show users the real structure of their Box. Recursion depth is
+ * capped to keep API usage bounded on deep trees. Nodes are sorted folders-first,
+ * then alphabetically, for a stable, readable render.
+ */
+export async function getFolderTree(rootFolderId: string): Promise<TreeNode[]> {
+  const accessToken = await getValidAccessToken();
+  const client = clientFromAccessToken(accessToken);
+
+  async function walk(folderId: string, depth: number): Promise<TreeNode[]> {
+    const nodes: TreeNode[] = [];
+    let offset = 0;
+    for (;;) {
+      const res = await client.folders.getFolderItems(folderId, {
+        queryParams: { offset, limit: 1000 },
+      });
+      const entries = res.entries ?? [];
+      for (const e of entries) {
+        const entry = e as { type?: string; id?: string; name?: string };
+        if (!entry.id) continue;
+        if (entry.type === "folder") {
+          nodes.push({
+            type: "folder",
+            id: entry.id,
+            name: entry.name ?? entry.id,
+            children: depth < 8 ? await walk(entry.id, depth + 1) : [],
+          });
+        } else if (entry.type === "file") {
+          nodes.push({ type: "file", id: entry.id, name: entry.name ?? entry.id });
+        }
+      }
+      offset += entries.length;
+      if (entries.length === 0 || offset >= (res.totalCount ?? entries.length)) break;
+    }
+    return nodes.sort((a, b) =>
+      a.type !== b.type
+        ? a.type === "folder"
+          ? -1
+          : 1
+        : a.name.localeCompare(b.name),
+    );
+  }
+
+  return walk(rootFolderId, 0);
+}
+
 export async function createWebhook(folderId: string): Promise<string> {
   const accessToken = await getValidAccessToken();
   const client = clientFromAccessToken(accessToken);
