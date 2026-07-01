@@ -5,7 +5,7 @@
 import { Redis } from "@upstash/redis";
 import { Index } from "@upstash/vector";
  
-const redis = Redis.fromEnv();
+const redis = Redis.fromEnv(); 
 const index = Index.fromEnv();
 
 async function main() {
