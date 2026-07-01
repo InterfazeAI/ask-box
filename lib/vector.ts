@@ -29,6 +29,11 @@ export async function upsertChunks(
   }
 }
 
+export async function deleteFileChunks(fileId: string): Promise<void> {
+  // Trailing ":" so deleting file "1" doesn't also match "10", "11", ...
+  await index.delete({ prefix: `${fileId}:` }).catch(() => {});
+}
+
 export async function queryTopK(vector: number[], k: number): Promise<ChunkMeta[]> {
   const res = await index.query({ vector, topK: k, includeMetadata: true });
   return res.map((r) => r.metadata as unknown as ChunkMeta).filter(Boolean);

@@ -15,7 +15,10 @@ export default function SyncButton() {
       if (!res.ok) {
         setResult(data.error ?? "Sync failed");
       } else {
-        setResult(`Queued ${data.queued}, skipped ${data.skipped}`);
+        const parts = [`Indexed ${data.indexed}`, `skipped ${data.skipped}`];
+        if (data.removed) parts.push(`removed ${data.removed}`);
+        if (data.failed) parts.push(`failed ${data.failed}`);
+        setResult(parts.join(", "));
       }
     } catch {
       setResult("Sync failed");

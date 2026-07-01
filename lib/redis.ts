@@ -19,6 +19,11 @@ export async function setFileStatus(s: FileStatus): Promise<void> {
   await redis.publish(CHANNEL, buildStatusEvent(s));
 }
 
+export async function removeFileStatus(fileId: string): Promise<void> {
+  await redis.del(`file:${fileId}`);
+  await redis.srem("files", fileId);
+}
+
 export async function getAllFileStatuses(): Promise<FileStatus[]> {
   const ids = await redis.smembers("files");
   if (ids.length === 0) return [];

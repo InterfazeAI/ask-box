@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { collectFiles, selectFilesToSync, type BoxItem } from "@/lib/sync";
+import {
+  collectFiles,
+  selectFilesToSync,
+  selectFilesToRemove,
+  type BoxItem,
+} from "@/lib/sync";
 import type { FileStatus } from "@/lib/redis";
 
 describe("collectFiles", () => {
@@ -65,5 +70,24 @@ describe("selectFilesToSync", () => {
       "f1",
       "f2",
     ]);
+  });
+});
+
+describe("selectFilesToRemove", () => {
+  const files = [{ id: "f1", name: "a" }];
+
+  it("returns Redis files no longer present in Box", () => {
+    const statuses: FileStatus[] = [
+      { fileId: "f1", name: "a", stage: "indexed", updatedAt: 1 },
+      { fileId: "ghost", name: "response.json", stage: "queued", updatedAt: 1 },
+    ];
+    expect(selectFilesToRemove(files, statuses)).toEqual(["ghost"]);
+  });
+
+  it("returns [] when Redis matches Box", () => {
+    const statuses: FileStatus[] = [
+      { fileId: "f1", name: "a", stage: "indexed", updatedAt: 1 },
+    ];
+    expect(selectFilesToRemove(files, statuses)).toEqual([]);
   });
 });

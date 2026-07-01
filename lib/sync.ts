@@ -47,3 +47,16 @@ export function selectFilesToSync(
   );
   return files.filter((f) => !indexed.has(f.id));
 }
+
+/**
+ * Return the fileIds present in Redis (statuses) that no longer exist in Box.
+ * These are stale ghosts — e.g. files deleted from Box — that Sync should prune
+ * so the UI reflects the true state of the Box folder.
+ */
+export function selectFilesToRemove(
+  files: BoxFile[],
+  statuses: FileStatus[],
+): string[] {
+  const present = new Set(files.map((f) => f.id));
+  return statuses.map((s) => s.fileId).filter((id) => !present.has(id));
+}
