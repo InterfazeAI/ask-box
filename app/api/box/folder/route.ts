@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createBoxFolder } from "@/lib/box";
+import { resolveBoxUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /** Create a new Box folder from the dashboard. Body: { name, parentId? }. */
 export async function POST(req: NextRequest) {
+  const boxUserId = await resolveBoxUserId(req);
+  if (!boxUserId) return NextResponse.json({ error: "not connected" }, { status: 401 });
+
   let name: string;
   let parentId: string;
   try {
@@ -17,7 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const folder = await createBoxFolder(parentId, name);
+    const folder = await createBoxFolder(boxUserId, parentId, name);
     return NextResponse.json({ ok: true, folder });
   } catch (err) {
     console.error("[folder] create failed", err);

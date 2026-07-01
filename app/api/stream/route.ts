@@ -1,4 +1,6 @@
 import { getAllFileStatuses, type FileStatus } from "@/lib/redis";
+import { resolveBoxUserId } from "@/lib/session";
+import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,26 +19,29 @@ function statusKey(s: FileStatus): string {
   return `${s.fileId}:${s.stage}:${s.updatedAt}`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const boxUserId = await resolveBoxUserId(req);
   const encoder = new TextEncoder();
   let intervalId: ReturnType<typeof setInterval> | undefined;
 
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (data: unknown) => {
+      const send = (data: unknown) =>
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      };
+
+      if (!boxUserId) {
+        send({ type: "snapshot", files: [] });
+        controller.close();
+        return;
+      }
 
       const lastSeen = new Map<string, string>();
-
       const recordSeen = (files: FileStatus[]) => {
-        for (const file of files) {
-          lastSeen.set(file.fileId, statusKey(file));
-        }
+        for (const file of files) lastSeen.set(file.fileId, statusKey(file));
       };
 
       try {
-        const snapshot = await getAllFileStatuses();
+        const snapshot = await getAllFileStatuses(boxUserId);
         recordSeen(snapshot);
         send({ type: "snapshot", files: snapshot });
       } catch (err) {
@@ -46,7 +51,7 @@ export async function GET() {
 
       intervalId = setInterval(async () => {
         try {
-          const files = await getAllFileStatuses();
+          const files = await getAllFileStatuses(boxUserId);
           for (const file of files) {
             const key = statusKey(file);
             if (lastSeen.get(file.fileId) !== key) {

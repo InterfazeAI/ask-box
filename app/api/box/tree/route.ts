@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getFolderTree, type TreeNode } from "@/lib/box";
 import {
   getAllFileStatuses,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/redis";
 import { deleteFileChunks } from "@/lib/vector";
 import { enqueueProcess } from "@/lib/queue";
+import { resolveBoxUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -29,10 +30,13 @@ function collectFiles(
  * Already-indexed and errored files are left untouched (no retry storms).
  * The dashboard polls this on an interval, which is what makes sync automatic.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const boxUserId = await resolveBoxUserId(req);
+  if (!boxUserId) return NextResponse.json({ error: "not connected" }, { status: 401 });
+
   let tree: TreeNode[];
   try {
-    tree = await getFolderTree("0");
+    tree = await getFolderTree(boxUserId, "0");
   } catch (err) {
     console.error("[tree] failed to list Box folder", err);
     return NextResponse.json(
@@ -43,15 +47,15 @@ export async function GET() {
 
   const files = collectFiles(tree);
   const present = new Set(files.map((f) => f.id));
-  const statuses = await getAllFileStatuses();
+  const statuses = await getAllFileStatuses(boxUserId);
   const known = new Map(statuses.map((s) => [s.fileId, s]));
 
   // Prune ghosts: files indexed in Redis that no longer exist in Box.
   const ghosts = statuses.filter((s) => !present.has(s.fileId));
   await Promise.all(
     ghosts.map(async (g) => {
-      await deleteFileChunks(g.fileId);
-      await removeFileStatus(g.fileId);
+      await deleteFileChunks(boxUserId, g.fileId);
+      await removeFileStatus(boxUserId, g.fileId);
     }),
   );
 
@@ -60,16 +64,16 @@ export async function GET() {
   const fresh = files.filter((f) => !known.has(f.id));
   await Promise.all(
     fresh.map(async (f) => {
-      await setFileStatus({
+      await setFileStatus(boxUserId, {
         fileId: f.id,
         name: f.name,
         stage: "queued",
         updatedAt: Date.now(),
       });
-      await enqueueProcess(f.id);
+      await enqueueProcess(boxUserId, f.id);
     }),
   );
 
-  const merged = await getAllFileStatuses();
+  const merged = await getAllFileStatuses(boxUserId);
   return NextResponse.json({ tree, statuses: merged });
 }

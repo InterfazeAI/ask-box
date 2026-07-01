@@ -3,23 +3,18 @@ import { Index } from "@upstash/vector";
 export type ChunkMeta = { fileId: string; fileName: string; chunkIdx: number; text: string };
 
 const index = Index.fromEnv();
+// One Upstash namespace per Box account isolates every account's vectors.
+const ns = (userId: string) => index.namespace(userId);
 
 export async function upsertChunks(
+  userId: string,
   fileId: string,
   items: { vector: number[]; meta: ChunkMeta }[],
 ): Promise<void> {
-  // Idempotent: remove ALL existing chunks for this file before upserting, regardless
-  // of how many items the current run produced. This prevents stale higher-index
-  // vectors (e.g. `${fileId}:3`, `:4`, ...) from lingering when a re-processed file
-  // yields fewer chunks than a previous run.
-  // The trailing ":" in the prefix is required so deleting file "1" doesn't also
-  // delete file "10", "11", etc.
-  await index.delete({ prefix: `${fileId}:` }).catch(() => {});
-
-  // index.upsert([]) can throw on some clients, and there's nothing to do for an
-  // empty document anyway.
+  // Trailing ":" so file "1" doesn't also match "10", "11", ...
+  await ns(userId).delete({ prefix: `${fileId}:` }).catch(() => {});
   if (items.length) {
-    await index.upsert(
+    await ns(userId).upsert(
       items.map((it) => ({
         id: `${it.meta.fileId}:${it.meta.chunkIdx}`,
         vector: it.vector,
@@ -29,15 +24,18 @@ export async function upsertChunks(
   }
 }
 
-export async function deleteFileChunks(fileId: string): Promise<void> {
-  // Trailing ":" so deleting file "1" doesn't also match "10", "11", ...
-  await index.delete({ prefix: `${fileId}:` }).catch(() => {});
+export async function deleteFileChunks(userId: string, fileId: string): Promise<void> {
+  await ns(userId).delete({ prefix: `${fileId}:` }).catch(() => {});
 }
 
 export type ScoredChunk = ChunkMeta & { score: number };
 
-export async function queryTopK(vector: number[], k: number): Promise<ScoredChunk[]> {
-  const res = await index.query({ vector, topK: k, includeMetadata: true });
+export async function queryTopK(
+  userId: string,
+  vector: number[],
+  k: number,
+): Promise<ScoredChunk[]> {
+  const res = await ns(userId).query({ vector, topK: k, includeMetadata: true });
   return res
     .filter((r) => r.metadata)
     .map((r) => ({ ...(r.metadata as unknown as ChunkMeta), score: r.score }));
