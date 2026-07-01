@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { BoxClient, BoxDeveloperTokenAuth } from "box-typescript-sdk-gen";
 import { AuthorizationManager } from "box-typescript-sdk-gen/managers";
 import { readByteStream } from "box-typescript-sdk-gen/internal";
@@ -13,26 +12,6 @@ export function getAuthorizeUrl(state: string): string {
     state,
   });
   return `https://account.box.com/api/oauth2/authorize?${p}`;
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
-}
-
-export function isValidWebhookSignature(
-  body: string,
-  headers: Record<string, string | null>,
-): boolean {
-  const ts = headers["box-delivery-timestamp"] ?? "";
-  const mk = (key?: string) =>
-    key ? crypto.createHmac("sha256", key).update(body + ts).digest("base64") : "";
-  const prim = mk(process.env.BOX_WEBHOOK_PRIMARY_KEY);
-  const sec = mk(process.env.BOX_WEBHOOK_SECONDARY_KEY);
-  const gotP = headers["box-signature-primary"] ?? "";
-  const gotS = headers["box-signature-secondary"] ?? "";
-  return (!!prim && safeEqual(prim, gotP)) || (!!sec && safeEqual(sec, gotS));
 }
 
 /**
@@ -55,55 +34,51 @@ export async function exchangeCodeForTokens(code: string): Promise<BoxTokens> {
     clientSecret: process.env.BOX_CLIENT_SECRET!,
     code,
   });
-  const tokens: BoxTokens = {
+  return {
     accessToken: token.accessToken!,
     refreshToken: token.refreshToken!,
     expiresAt: Date.now() + (token.expiresIn ?? 0) * 1000,
   };
-  await setBoxTokens(tokens);
-  return tokens;
 }
 
-export async function getValidAccessToken(): Promise<string> {
-  // Dev/testing shortcut: a Box Developer Token (Console → app → Configuration →
-  // "Generate Developer Token", valid ~60 min) bypasses the OAuth flow entirely.
-  // When BOX_DEVELOPER_TOKEN is set we use it directly; regenerate it when it expires.
-  const devToken = process.env.BOX_DEVELOPER_TOKEN;
-  if (devToken) {
-    return devToken;
-  }
+/** Resolve the Box account id for an access token — the identity we key on. */
+export async function getBoxUserId(accessToken: string): Promise<string> {
+  const client = clientFromAccessToken(accessToken);
+  const me = await client.users.getUserMe();
+  if (!me.id) throw new Error("Box /users/me returned no id");
+  return me.id;
+}
 
-  const tokens = await getBoxTokens();
+export async function getValidAccessToken(boxUserId: string): Promise<string> {
+  const tokens = await getBoxTokens(boxUserId);
   if (!tokens) {
     throw new Error("No Box tokens found. Complete the OAuth flow first.");
   }
-
   if (Date.now() <= tokens.expiresAt - 60_000) {
     return tokens.accessToken;
   }
-
   const refreshed = await authorizationManager.refreshAccessToken({
     grantType: "refresh_token",
     clientId: process.env.BOX_CLIENT_ID!,
     clientSecret: process.env.BOX_CLIENT_SECRET!,
     refreshToken: tokens.refreshToken,
   });
-
   const newTokens: BoxTokens = {
     accessToken: refreshed.accessToken!,
     refreshToken: refreshed.refreshToken ?? tokens.refreshToken,
     expiresAt: Date.now() + (refreshed.expiresIn ?? 0) * 1000,
   };
-  await setBoxTokens(newTokens);
+  await setBoxTokens(boxUserId, newTokens);
   return newTokens.accessToken;
 }
 
 const MAX_FILE_BYTES = Number(process.env.MAX_FILE_MB ?? 25) * 1024 * 1024;
 
 export async function downloadFile(
+  boxUserId: string,
   fileId: string,
 ): Promise<{ name: string; buffer: Buffer }> {
-  const accessToken = await getValidAccessToken();
+  const accessToken = await getValidAccessToken(boxUserId);
   const client = clientFromAccessToken(accessToken);
 
   // Fetch metadata first and reject oversized files BEFORE pulling bytes into
@@ -134,9 +109,10 @@ export async function downloadFile(
  * the real Box client.
  */
 export async function listFolderFilesRecursive(
+  boxUserId: string,
   rootFolderId: string,
 ): Promise<BoxFile[]> {
-  const accessToken = await getValidAccessToken();
+  const accessToken = await getValidAccessToken(boxUserId);
   const client = clientFromAccessToken(accessToken);
 
   const listPage = async (folderId: string, offset: number) => {
@@ -172,8 +148,11 @@ export type TreeNode = TreeFile | TreeFolder;
  * capped to keep API usage bounded on deep trees. Nodes are sorted folders-first,
  * then alphabetically, for a stable, readable render.
  */
-export async function getFolderTree(rootFolderId: string): Promise<TreeNode[]> {
-  const accessToken = await getValidAccessToken();
+export async function getFolderTree(
+  boxUserId: string,
+  rootFolderId: string,
+): Promise<TreeNode[]> {
+  const accessToken = await getValidAccessToken(boxUserId);
   const client = clientFromAccessToken(accessToken);
 
   async function walk(folderId: string, depth: number): Promise<TreeNode[]> {
@@ -215,11 +194,12 @@ export async function getFolderTree(rootFolderId: string): Promise<TreeNode[]> {
 
 /** Upload a file into a Box folder. Returns the new Box file id. */
 export async function uploadFileToBox(
+  boxUserId: string,
   parentId: string,
   name: string,
   bytes: ArrayBuffer,
 ): Promise<{ id: string; name: string }> {
-  const token = await getValidAccessToken();
+  const token = await getValidAccessToken(boxUserId);
   const form = new FormData();
   form.append(
     "attributes",
@@ -244,8 +224,8 @@ export async function uploadFileToBox(
 }
 
 /** Delete a Box file (moves it to trash). Treats 404 as already-gone. */
-export async function deleteBoxFile(fileId: string): Promise<void> {
-  const token = await getValidAccessToken();
+export async function deleteBoxFile(boxUserId: string, fileId: string): Promise<void> {
+  const token = await getValidAccessToken(boxUserId);
   const res = await fetch(`https://api.box.com/2.0/files/${fileId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
@@ -257,10 +237,11 @@ export async function deleteBoxFile(fileId: string): Promise<void> {
 
 /** Create a subfolder in Box. Returns the new folder id. */
 export async function createBoxFolder(
+  boxUserId: string,
   parentId: string,
   name: string,
 ): Promise<{ id: string; name: string }> {
-  const token = await getValidAccessToken();
+  const token = await getValidAccessToken(boxUserId);
   const res = await fetch("https://api.box.com/2.0/folders", {
     method: "POST",
     headers: {
@@ -274,26 +255,4 @@ export async function createBoxFolder(
   }
   const data = (await res.json()) as { id: string; name: string };
   return { id: data.id, name: data.name };
-}
-
-export async function createWebhook(folderId: string): Promise<string> {
-  const accessToken = await getValidAccessToken();
-  const client = clientFromAccessToken(accessToken);
-
-  const webhook = await client.webhooks.createWebhook({
-    target: { type: "folder", id: folderId },
-    triggers: ["FILE.UPLOADED"],
-    address: `${process.env.APP_URL}/api/box/webhook`,
-  });
-
-  if (!webhook.id) {
-    throw new Error("Box did not return a webhook id");
-  }
-  return webhook.id;
-}
-
-export async function deleteWebhook(webhookId: string): Promise<void> {
-  const accessToken = await getValidAccessToken();
-  const client = clientFromAccessToken(accessToken);
-  await client.webhooks.deleteWebhookById(webhookId);
 }
