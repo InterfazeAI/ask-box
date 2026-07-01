@@ -7,12 +7,12 @@ export async function POST(req: NextRequest) {
   if (!(await verifyQstash(req.headers.get("upstash-signature"), body))) {
     return NextResponse.json({ error: "bad signature" }, { status: 403 });
   }
+  let boxUserId: string;
   let fileId: string;
   try {
-    const parsed = JSON.parse(body) as { fileId?: string };
-    if (!parsed.fileId) {
-      throw new Error("missing fileId");
-    }
+    const parsed = JSON.parse(body) as { boxUserId?: string; fileId?: string };
+    if (!parsed.boxUserId || !parsed.fileId) throw new Error("missing fields");
+    boxUserId = parsed.boxUserId;
     fileId = parsed.fileId;
   } catch {
     // Malformed or incomplete body: tell QStash not to retry (400), not a transient failure.
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const chunks = await processFile(fileId);
+    const chunks = await processFile(boxUserId, fileId);
     return NextResponse.json({ ok: true, chunks });
   } catch {
     // processFile already recorded an "error" status. 500 lets QStash retry transient failures.

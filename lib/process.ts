@@ -14,13 +14,14 @@ import { setFileStatus } from "@/lib/redis";
  * inline /api/sync route. Returns the number of chunks indexed.
  */
 export async function processFile(
+  boxUserId: string,
   fileId: string,
   initialName?: string,
 ): Promise<number> {
   let name = initialName ?? fileId;
   try {
-    await setFileStatus({ fileId, name, stage: "extracting", updatedAt: Date.now() });
-    const file = await downloadFile(fileId);
+    await setFileStatus(boxUserId, { fileId, name, stage: "extracting", updatedAt: Date.now() });
+    const file = await downloadFile(boxUserId, fileId);
     name = file.name;
     const text = await extractText(file);
     const chunks = chunkText(text);
@@ -29,7 +30,7 @@ export async function processFile(
       throw new Error("No text could be extracted from this file");
     }
 
-    await setFileStatus({ fileId, name, stage: "embedding", updatedAt: Date.now() });
+    await setFileStatus(boxUserId, { fileId, name, stage: "embedding", updatedAt: Date.now() });
     // Embed all chunks concurrently. The JigsawStack rate limiter still caps
     // starts at 30 req/s, so this overlaps network latency without exceeding the
     // limit. allSettled preserves order and lets a bad chunk be skipped, not fatal.
@@ -53,14 +54,14 @@ export async function processFile(
     if (items.length === 0) {
       throw new Error("All chunks failed to embed");
     }
-    await upsertChunks(fileId, items);
+    await upsertChunks(boxUserId, fileId, items);
 
-    await setFileStatus({
+    await setFileStatus(boxUserId, {
       fileId, name, stage: "indexed", chunkCount: items.length, updatedAt: Date.now(),
     });
     return items.length;
   } catch (err) {
-    await setFileStatus({
+    await setFileStatus(boxUserId, {
       fileId, name, stage: "error",
       error: err instanceof Error ? err.message : "unknown error",
       updatedAt: Date.now(),

@@ -12,10 +12,10 @@ const receiver = new Receiver({
   nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY!,
 });
 
-export async function enqueueProcess(fileId: string): Promise<void> {
+export async function enqueueProcess(boxUserId: string, fileId: string): Promise<void> {
   await client.publishJSON({
     url: `${process.env.APP_URL}/api/process`,
-    body: { fileId },
+    body: { boxUserId, fileId },
   });
 }
 
