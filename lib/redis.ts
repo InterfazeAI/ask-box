@@ -7,34 +7,34 @@ export type FileStatus = {
 };
 
 export const redis = Redis.fromEnv();
-export const CHANNEL = "file-updates";
+
+// All state is keyed by the Box account id so accounts never see each other.
+export const tokensKey = (id: string) => `box:tokens:${id}`;
+export const filesKey = (id: string) => `files:${id}`;
+export const fileKey = (id: string, fileId: string) => `file:${id}:${fileId}`;
 
 export function buildStatusEvent(s: FileStatus): string {
   return JSON.stringify(s);
 }
 
-export async function setFileStatus(s: FileStatus): Promise<void> {
-  await redis.set(`file:${s.fileId}`, s);
-  await redis.sadd("files", s.fileId);
-  await redis.publish(CHANNEL, buildStatusEvent(s));
+export async function setFileStatus(id: string, s: FileStatus): Promise<void> {
+  await redis.set(fileKey(id, s.fileId), s);
+  await redis.sadd(filesKey(id), s.fileId);
 }
 
-export async function removeFileStatus(fileId: string): Promise<void> {
-  await redis.del(`file:${fileId}`);
-  await redis.srem("files", fileId);
+export async function removeFileStatus(id: string, fileId: string): Promise<void> {
+  await redis.del(fileKey(id, fileId));
+  await redis.srem(filesKey(id), fileId);
 }
 
-export async function getAllFileStatuses(): Promise<FileStatus[]> {
-  const ids = await redis.smembers("files");
+export async function getAllFileStatuses(id: string): Promise<FileStatus[]> {
+  const ids = await redis.smembers(filesKey(id));
   if (ids.length === 0) return [];
-  const rows = await Promise.all(ids.map((id) => redis.get<FileStatus>(`file:${id}`)));
+  const rows = await Promise.all(ids.map((fid) => redis.get<FileStatus>(fileKey(id, fid))));
   return rows.filter((r): r is FileStatus => !!r).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export type BoxTokens = { accessToken: string; refreshToken: string; expiresAt: number };
-export const getBoxTokens = () => redis.get<BoxTokens>("box:tokens");
-export const setBoxTokens = (t: BoxTokens) => redis.set("box:tokens", t);
-export const clearBoxTokens = () => redis.del("box:tokens");
-export const getWebhookId = () => redis.get<string>("box:webhook");
-export const setWebhookId = (id: string) => redis.set("box:webhook", id);
-export const clearWebhookId = () => redis.del("box:webhook");
+export const getBoxTokens = (id: string) => redis.get<BoxTokens>(tokensKey(id));
+export const setBoxTokens = (id: string, t: BoxTokens) => redis.set(tokensKey(id), t);
+export const clearBoxTokens = (id: string) => redis.del(tokensKey(id));
