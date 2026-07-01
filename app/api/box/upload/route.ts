@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { uploadFileToBox } from "@/lib/box";
 import { setFileStatus } from "@/lib/redis";
 import { enqueueProcess } from "@/lib/queue";
+import { resolveBoxUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -12,6 +13,9 @@ export const maxDuration = 800;
  * reacts instantly (the tree poll would otherwise pick it up within ~15s).
  */
 export async function POST(req: NextRequest) {
+  const boxUserId = await resolveBoxUserId(req);
+  if (!boxUserId) return NextResponse.json({ error: "not connected" }, { status: 401 });
+
   const form = await req.formData();
   const parentId = (form.get("parentId") as string) || "0";
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
@@ -24,15 +28,15 @@ export async function POST(req: NextRequest) {
   try {
     for (const file of files) {
       const bytes = await file.arrayBuffer();
-      const created = await uploadFileToBox(parentId, file.name, bytes);
+      const created = await uploadFileToBox(boxUserId, parentId, file.name, bytes);
       uploaded.push(created);
-      await setFileStatus({
+      await setFileStatus(boxUserId, {
         fileId: created.id,
         name: created.name,
         stage: "queued",
         updatedAt: Date.now(),
       });
-      await enqueueProcess(created.id);
+      await enqueueProcess(boxUserId, created.id);
     }
   } catch (err) {
     console.error("[upload] failed", err);

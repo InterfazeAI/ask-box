@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { createOpenAI } from "@ai-sdk/openai";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { embed } from "@/lib/jigsawstack";
@@ -5,6 +6,7 @@ import { queryTopK } from "@/lib/vector";
 import { buildContext, buildSystemPrompt } from "@/lib/prompt";
 import { interfazeLimiter } from "@/lib/ratelimit";
 import { getAllFileStatuses } from "@/lib/redis";
+import { resolveBoxUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,15 @@ const interfaze = createOpenAI({
 // as relevant. Below this we drop it rather than feeding noise to the model.
 const MIN_SCORE = Number(process.env.MIN_SCORE ?? 0.7);
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const boxUserId = await resolveBoxUserId(req);
+  if (!boxUserId) {
+    return new Response(JSON.stringify({ error: "not connected" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   // v6 UI messages carry content in a `parts` array; pull the latest user text.
@@ -33,14 +43,14 @@ export async function POST(req: Request) {
   if (question) {
     const qVec = await embed(question);
     // Over-fetch, then #1 keep only chunks above the relevance threshold.
-    const scored = await queryTopK(qVec, 8);
+    const scored = await queryTopK(boxUserId, qVec, 8);
     const relevant = scored.filter((c) => c.score >= MIN_SCORE);
     ({ context, sources } = buildContext(relevant));
   }
 
   // Corpus inventory so the assistant can answer "what/how many files are
   // indexed" — questions whose answer isn't inside any document's text.
-  const statuses = await getAllFileStatuses();
+  const statuses = await getAllFileStatuses(boxUserId);
   const indexed = statuses.filter((s) => s.stage === "indexed");
   const manifest = indexed.length
     ? `${indexed.length} file${indexed.length === 1 ? "" : "s"} indexed: ${indexed

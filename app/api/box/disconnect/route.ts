@@ -1,27 +1,13 @@
-import { NextResponse } from "next/server";
-import { deleteWebhook } from "@/lib/box";
-import { clearBoxTokens, clearWebhookId, getWebhookId } from "@/lib/redis";
+import { NextRequest, NextResponse } from "next/server";
+import { clearBoxTokens, redis } from "@/lib/redis";
+import { resolveBoxUserId, getSid } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
-  // Best-effort webhook teardown. This runs before we drop the tokens because
-  // deleting the webhook needs a valid access token. A failure here (e.g. the
-  // webhook was already removed in the Box console) must not block disconnect —
-  // clearing our stored tokens is what actually severs the connection.
-  const webhookId = await getWebhookId();
-  if (webhookId) {
-    try {
-      await deleteWebhook(webhookId);
-    } catch (err) {
-      console.warn(
-        "[box/disconnect] Failed to delete webhook:",
-        err instanceof Error ? err.message : err
-      );
-    }
-  }
-
-  await Promise.all([clearBoxTokens(), clearWebhookId()]);
-
+export async function POST(req: NextRequest) {
+  const boxUserId = await resolveBoxUserId(req);
+  const sid = await getSid(req);
+  if (boxUserId) await clearBoxTokens(boxUserId);
+  if (sid) await redis.del(`session:${sid}`);
   return NextResponse.json({ connected: false });
 }
