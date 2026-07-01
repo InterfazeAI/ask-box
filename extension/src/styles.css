@@ -1,0 +1,26 @@
+@import "../../app/globals.css";
+
+/* Tailwind v4 auto-detects co-located sources; the shared components live
+   outside this folder, so declare them explicitly. */
+@source "../../components";
+@source "../../app";
+@source "../../lib";
+
+/* next/font isn't available in a Vite build; map the CSS variables the shared
+   components expect to a system fallback stack so layout still looks right. */
+:root {
+  --font-geist-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-geist-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
