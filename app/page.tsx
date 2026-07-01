@@ -2,7 +2,7 @@ import ConnectBox from "@/components/ConnectBox";
 import FolderTree from "@/components/FolderTree";
 import ChatPanel from "@/components/ChatPanel";
 import BoxLogo from "@/components/BoxLogo";
-import InterfazeLogo from "@/components/InterfazeLogo";
+import InterfazeWordmark from "@/components/InterfazeWordmark";
 
 export default function Home() {
   return (
@@ -19,9 +19,7 @@ export default function Home() {
             </span>
             <span className="mx-1 hidden h-5 w-px bg-white/10 sm:block" />
             <span className="hidden text-sm text-zinc-500 sm:inline">Powered by</span>
-            <span className="flex h-9 items-center justify-center rounded-md bg-white px-2.5">
-              <InterfazeLogo className="h-4 w-auto" />
-            </span>
+            <InterfazeWordmark className="h-5 w-auto" />
           </div>
           <div className="flex items-center gap-3">
             <ConnectBox />
