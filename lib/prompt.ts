@@ -54,6 +54,7 @@ export function buildSystemPrompt(
     "For questions about document CONTENT, answer ONLY using the context below; if it isn't there, say you don't know.",
     "For questions about which files exist or how many are indexed, use the 'Indexed documents' list below.",
     "Cite content sources using their [n] markers and name the source file(s) you relied on.",
+    "Respond as quickly as possible",
   ];
   if (manifest) {
     lines.push("", `Indexed documents — ${manifest}`);
