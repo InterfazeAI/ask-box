@@ -34,7 +34,11 @@ export async function deleteFileChunks(fileId: string): Promise<void> {
   await index.delete({ prefix: `${fileId}:` }).catch(() => {});
 }
 
-export async function queryTopK(vector: number[], k: number): Promise<ChunkMeta[]> {
+export type ScoredChunk = ChunkMeta & { score: number };
+
+export async function queryTopK(vector: number[], k: number): Promise<ScoredChunk[]> {
   const res = await index.query({ vector, topK: k, includeMetadata: true });
-  return res.map((r) => r.metadata as unknown as ChunkMeta).filter(Boolean);
+  return res
+    .filter((r) => r.metadata)
+    .map((r) => ({ ...(r.metadata as unknown as ChunkMeta), score: r.score }));
 }

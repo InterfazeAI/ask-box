@@ -22,6 +22,9 @@ type StreamEvent = SnapshotEvent | UpdateEvent;
 
 const POLL_MS = 12000;
 
+// Read-only mode: hide upload / new-folder / delete actions from the dashboard.
+const ALLOW_MUTATIONS = false;
+
 type TreeActions = {
   requestUpload: (parentId: string) => void;
   startNewFolder: (parentId: string, parentName: string) => void;
@@ -123,7 +126,9 @@ function FileRow({
         <FileCard
           status={status}
           deleting={deleting}
-          onDelete={() => actions?.deleteFile(node.id, node.name)}
+          onDelete={
+            ALLOW_MUTATIONS ? () => actions?.deleteFile(node.id, node.name) : undefined
+          }
         />
       </div>
     );
@@ -147,22 +152,23 @@ function FileRow({
         <span className="size-2 rounded-full bg-status-gray" />
         Not indexed
       </span>
-      {deleting ? (
-        <span className="flex size-6 shrink-0 items-center justify-center text-status-red">
-          <Spinner />
-        </span>
-      ) : (
-        <button
-          onClick={() => actions?.deleteFile(node.id, node.name)}
-          title="Delete from Box"
-          aria-label="Delete from Box"
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-all hover:bg-status-red/10 hover:text-status-red"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-          </svg>
-        </button>
-      )}
+      {ALLOW_MUTATIONS &&
+        (deleting ? (
+          <span className="flex size-6 shrink-0 items-center justify-center text-status-red">
+            <Spinner />
+          </span>
+        ) : (
+          <button
+            onClick={() => actions?.deleteFile(node.id, node.name)}
+            title="Delete from Box"
+            aria-label="Delete from Box"
+            className="flex size-6 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-all hover:bg-status-red/10 hover:text-status-red"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+            </svg>
+          </button>
+        ))}
     </div>
   );
 }
@@ -209,17 +215,19 @@ function FolderRow({
         <span className="shrink-0 font-mono text-[11px] text-zinc-400">
           {count} file{count === 1 ? "" : "s"}
         </span>
-        <div className="flex shrink-0 items-center gap-1">
-          <IconButton title="Upload file here" onClick={() => actions?.requestUpload(node.id)}>
-            {IconUpload}
-          </IconButton>
-          <IconButton
-            title="New subfolder"
-            onClick={() => actions?.startNewFolder(node.id, node.name)}
-          >
-            {IconFolderPlus}
-          </IconButton>
-        </div>
+        {ALLOW_MUTATIONS && (
+          <div className="flex shrink-0 items-center gap-1">
+            <IconButton title="Upload file here" onClick={() => actions?.requestUpload(node.id)}>
+              {IconUpload}
+            </IconButton>
+            <IconButton
+              title="New subfolder"
+              onClick={() => actions?.startNewFolder(node.id, node.name)}
+            >
+              {IconFolderPlus}
+            </IconButton>
+          </div>
+        )}
       </div>
 
       {open &&
@@ -228,12 +236,28 @@ function FolderRow({
             <TreeRows nodes={node.children} depth={depth + 1} statuses={statuses} />
           </div>
         ) : (
-          <p
-            style={{ paddingLeft: (depth + 1) * 18 }}
-            className="px-2 py-1.5 text-xs text-zinc-600"
+          <motion.div
+            style={{ marginLeft: (depth + 1) * 18 }}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="mt-2 flex items-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-3 py-2.5"
           >
-            Empty folder
-          </p>
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-white/8 bg-white/[0.03] text-zinc-500">
+              <svg viewBox="0 0 24 24" fill="none" className="size-3.5" aria-hidden="true">
+                <path
+                  d="M3 7.5A1.5 1.5 0 014.5 6h4l2 2h7A1.5 1.5 0 0119 9.5v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 013 16.5v-9z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="text-xs font-medium text-zinc-400">
+              Empty folder
+              <span className="ml-1.5 font-normal text-zinc-600">— nothing indexed yet</span>
+            </span>
+          </motion.div>
         ))}
     </div>
   );
@@ -257,7 +281,7 @@ function TreeRows({
             layout
             initial={{ opacity: 0, y: 10, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ duration: 0.4, ease: "easeInOut" }}
           >
             {n.type === "folder" ? (
@@ -278,6 +302,9 @@ export default function FolderTree() {
   const [tree, setTree] = useState<TreeNode[] | null>(null);
   const [statuses, setStatuses] = useState<Map<string, FileStatus>>(new Map());
   const [connected, setConnected] = useState(false);
+  // Box account connection (null = still checking). Distinct from `connected`,
+  // which tracks the live SSE stream.
+  const [boxConnected, setBoxConnected] = useState<boolean | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState<string[]>([]);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -298,9 +325,15 @@ export default function FolderTree() {
     if (!silent) setSyncing(true);
     try {
       const res = await fetch("/api/box/tree", { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        // 502 = the tree route couldn't reach Box, which in practice means the
+        // account isn't connected. Surface that instead of spinning forever.
+        if (res.status === 502 && mounted.current) setBoxConnected(false);
+        return;
+      }
       const data = (await res.json()) as { tree?: TreeNode[]; statuses?: FileStatus[] };
       if (!mounted.current) return;
+      setBoxConnected(true);
       if (data.tree) setTree(data.tree);
       if (Array.isArray(data.statuses)) {
         setStatuses(new Map(data.statuses.map((s) => [s.fileId, s])));
@@ -335,6 +368,15 @@ export default function FolderTree() {
     };
     source.onerror = () => setConnected(false);
     return () => source.close();
+  }, []);
+
+  // Check Box connection up front so we can show the right state without waiting
+  // for the (potentially failing) tree fetch to resolve.
+  useEffect(() => {
+    fetch("/api/box/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => mounted.current && setBoxConnected(!!d.connected))
+      .catch(() => {});
   }, []);
 
   // Auto-sync poll.
@@ -424,7 +466,7 @@ export default function FolderTree() {
 
   return (
     <section
-      className="panel animate-fade-up flex h-full flex-col overflow-hidden"
+      className="panel animate-fade-up flex h-[640px] max-h-[80vh] flex-col overflow-hidden"
       style={{ animationDelay: "220ms" }}
     >
       <input
@@ -441,21 +483,27 @@ export default function FolderTree() {
             Box workspace
           </h2>
           <p className="mt-0.5 font-mono text-[11px] text-zinc-400">
-            {tree === null
-              ? "loading folder…"
-              : `${totalFiles} file${totalFiles === 1 ? "" : "s"} · auto-synced${
-                  activeCount ? ` · ${activeCount} processing` : ""
-                }`}
+            {boxConnected === false
+              ? "not connected"
+              : tree === null
+                ? "loading folder…"
+                : `${totalFiles} file${totalFiles === 1 ? "" : "s"} · auto-synced${
+                    activeCount ? ` · ${activeCount} processing` : ""
+                  }`}
           </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <IconButton title="Upload to Box" onClick={() => actions.requestUpload("0")}>
-            {IconUpload}
-          </IconButton>
-          <IconButton title="New folder" onClick={() => actions.startNewFolder("0", "Box")}>
-            {IconFolderPlus}
-          </IconButton>
+          {ALLOW_MUTATIONS && (
+            <IconButton title="Upload to Box" onClick={() => actions.requestUpload("0")}>
+              {IconUpload}
+            </IconButton>
+          )}
+          {ALLOW_MUTATIONS && (
+            <IconButton title="New folder" onClick={() => actions.startNewFolder("0", "Box")}>
+              {IconFolderPlus}
+            </IconButton>
+          )}
           <span className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-zinc-300">
             {working ? (
               <>
@@ -484,7 +532,7 @@ export default function FolderTree() {
         </div>
       </header>
 
-      <div className="no-scrollbar flex-1 overflow-y-auto px-3 py-4">
+      <div className="no-scrollbar min-h-0 flex-1 overflow-auto px-3 py-4">
         {newFolder && (
           <form
             onSubmit={submitNewFolder}
@@ -541,7 +589,7 @@ export default function FolderTree() {
                   key={`uploading-${i}-${name}`}
                   initial={{ opacity: 0, y: 8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                 >
                   <UploadingCard name={name} />
@@ -551,7 +599,39 @@ export default function FolderTree() {
           </div>
         )}
 
-        {tree === null ? (
+        {boxConnected === false ? (
+          <div className="flex flex-col items-center justify-center px-8 py-14 text-center">
+            <div className="relative mb-5">
+              <div className="absolute inset-0 -z-10 rounded-full bg-status-amber/20 blur-2xl" />
+              <div className="flex size-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-status-amber">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-6"
+                  aria-hidden="true"
+                >
+                  <path d="M18.36 6.64a9 9 0 11-12.73 0" />
+                  <line x1="12" y1="2" x2="12" y2="12" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-sm font-medium text-zinc-200">Box not connected</p>
+            <p className="mt-1.5 max-w-xs text-sm text-zinc-400">
+              Connect your Box account to browse your folders and let Interfaze
+              index them automatically.
+            </p>
+            <a
+              href="/api/box/oauth/start"
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors duration-200 hover:bg-primary/90"
+            >
+              Connect Box
+            </a>
+          </div>
+        ) : tree === null ? (
           <p className="py-16 text-center font-mono text-xs text-zinc-600">
             Reading your Box folder…
           </p>
@@ -569,9 +649,8 @@ export default function FolderTree() {
               </div>
               <p className="text-sm font-medium text-zinc-200">Your Box is empty</p>
               <p className="mt-1.5 max-w-xs text-sm text-zinc-400">
-                Use <span className="text-zinc-300">Upload</span> or{" "}
-                <span className="text-zinc-300">New folder</span> above — everything you
-                add is saved straight to Box and indexed by Interfaze.
+                Add a file to your Box folder and Interfaze indexes it here
+                automatically.
               </p>
             </div>
           )

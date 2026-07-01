@@ -34,5 +34,7 @@ export async function getAllFileStatuses(): Promise<FileStatus[]> {
 export type BoxTokens = { accessToken: string; refreshToken: string; expiresAt: number };
 export const getBoxTokens = () => redis.get<BoxTokens>("box:tokens");
 export const setBoxTokens = (t: BoxTokens) => redis.set("box:tokens", t);
+export const clearBoxTokens = () => redis.del("box:tokens");
 export const getWebhookId = () => redis.get<string>("box:webhook");
 export const setWebhookId = (id: string) => redis.set("box:webhook", id);
+export const clearWebhookId = () => redis.del("box:webhook");

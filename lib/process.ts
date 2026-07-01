@@ -25,18 +25,40 @@ export async function processFile(
     const text = await extractText(file);
     const chunks = chunkText(text);
 
+    if (chunks.length === 0) {
+      throw new Error("No text could be extracted from this file");
+    }
+
     await setFileStatus({ fileId, name, stage: "embedding", updatedAt: Date.now() });
+    // Embed all chunks concurrently. The JigsawStack rate limiter still caps
+    // starts at 30 req/s, so this overlaps network latency without exceeding the
+    // limit. allSettled preserves order and lets a bad chunk be skipped, not fatal.
+    const results = await Promise.allSettled(chunks.map((chunk) => embed(chunk)));
     const items = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const vector = await embed(chunks[i]);
-      items.push({ vector, meta: { fileId, fileName: name, chunkIdx: i, text: chunks[i] } });
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        items.push({
+          vector: r.value,
+          meta: { fileId, fileName: name, chunkIdx: i, text: chunks[i] },
+        });
+      } else {
+        // One bad chunk shouldn't sink the whole file — skip it and continue.
+        console.warn(
+          `[process] skipped chunk ${i}/${chunks.length} of ${name}:`,
+          r.reason instanceof Error ? r.reason.message : r.reason,
+        );
+      }
+    }
+    if (items.length === 0) {
+      throw new Error("All chunks failed to embed");
     }
     await upsertChunks(fileId, items);
 
     await setFileStatus({
-      fileId, name, stage: "indexed", chunkCount: chunks.length, updatedAt: Date.now(),
+      fileId, name, stage: "indexed", chunkCount: items.length, updatedAt: Date.now(),
     });
-    return chunks.length;
+    return items.length;
   } catch (err) {
     await setFileStatus({
       fileId, name, stage: "error",

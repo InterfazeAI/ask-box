@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Embedding flow — sequential vs parallel (rate-limited)</title>
+<style>
+  :root {
+    --bg: #08080a;
+    --panel: #101013;
+    --line: rgba(255,255,255,0.08);
+    --txt: #f4f4f5;
+    --muted: #8a8a94;
+    --dim: #26262c;
+    --azure: #4c9dff;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background:
+      radial-gradient(1000px 500px at 50% -10%, rgba(76,157,255,0.10), transparent 60%),
+      var(--bg);
+    color: var(--txt); font-family: var(--sans); padding: 32px 20px 60px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 26px; letter-spacing: -0.03em; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 22px; max-width: 640px; line-height: 1.5; }
+  .controls { display:flex; flex-wrap:wrap; gap: 20px; align-items:center; margin-bottom: 22px;
+    background: var(--panel); border:1px solid var(--line); border-radius: 14px; padding: 14px 18px; }
+  .ctrl { display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--muted); }
+  .ctrl b { color: var(--txt); font-family: var(--mono); font-size: 13px; }
+  input[type=range] { width: 130px; accent-color: var(--azure); }
+  button { font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer;
+    background: var(--azure); color: #04122b; border: 0; border-radius: 999px; padding: 9px 18px;
+    transition: filter .15s; }
+  button:hover { filter: brightness(1.08); }
+  button.ghost { background: rgba(255,255,255,0.05); color: var(--txt); border:1px solid var(--line); }
+
+  .clock { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-left:auto; }
+  .clock b { color: var(--azure); }
+
+  .panel { background: var(--panel); border:1px solid var(--line); border-radius: 16px;
+    padding: 16px 18px 20px; margin-bottom: 18px; position: relative; overflow: hidden; }
+  .phead { display:flex; align-items:baseline; gap:10px; margin-bottom: 14px; }
+  .phead h2 { font-size: 15px; margin:0; letter-spacing:-0.01em; }
+  .phead .tag { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .total { margin-left:auto; font-family: var(--mono); font-size: 13px; }
+  .total b { font-size: 16px; }
+
+  .track { position: relative; }
+  .row { display:flex; align-items:center; gap:10px; height: 22px; margin: 3px 0; }
+  .row .lbl { width: 34px; font-family: var(--mono); font-size: 11px; color: var(--muted); text-align:right; }
+  .bar { position: relative; flex:1; height: 12px; border-radius: 6px; background: rgba(255,255,255,0.04); overflow:hidden; }
+  .seg { position:absolute; top:0; bottom:0; border-radius:6px; }
+  .seg.queue { background: var(--dim); }
+  .seg.embed { background: linear-gradient(90deg, rgba(76,157,255,0.5), var(--azure)); }
+  .seg.done { background: linear-gradient(90deg, rgba(52,211,153,0.5), var(--green)); }
+  .dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; background:var(--dim); transition: background .2s; }
+  .dot.active { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .dot.done { background: var(--green); box-shadow: 0 0 8px rgba(52,211,153,.7); }
+
+  .playhead { position:absolute; top:8px; bottom:8px; width:2px; background: rgba(255,255,255,0.35);
+    pointer-events:none; }
+
+  .legend { display:flex; gap:18px; font-size:11px; color:var(--muted); margin: 4px 2px 20px; flex-wrap:wrap; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:12px; height:12px; border-radius:3px; display:inline-block; }
+
+  .result { display:flex; flex-direction:column; gap:8px; }
+  .vecwrap { display:flex; flex-wrap:wrap; gap:5px; }
+  .vec { width: 30px; height: 22px; border-radius:5px; border:1px solid var(--line);
+    background: rgba(255,255,255,0.02); display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:10px; color: var(--dim); transition: all .25s; }
+  .vec.filled { background: rgba(52,211,153,0.14); border-color: rgba(52,211,153,0.5); color: var(--green); }
+  .note { font-size:12px; color:var(--muted); line-height:1.5; margin-top:6px; }
+  code { font-family:var(--mono); color:var(--azure); background:rgba(76,157,255,.08); padding:1px 5px; border-radius:4px; font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Chunk embedding — sequential vs parallel</h1>
+  <p class="sub">
+    A file is split into chunks. Each chunk needs one embedding request. Both lanes obey the same
+    <b>30 req/s rate limiter</b> (visualized slower). Sequential waits for each round-trip before starting the next;
+    parallel fires them all and lets the network latencies <b>overlap</b> — bounded by the rate cap, not by <code>latency × chunks</code>.
+    Vectors reattach to their chunk <b>by index</b>.
+  </p>
+
+  <div class="controls">
+    <label class="ctrl">chunks <b id="vN">14</b><input id="N" type="range" min="4" max="40" value="14" /></label>
+    <label class="ctrl">latency / req <b id="vL">500ms</b><input id="L" type="range" min="120" max="900" step="20" value="500" /></label>
+    <label class="ctrl">rate limit <b id="vR">5 / s</b><input id="R" type="range" min="2" max="12" value="5" /></label>
+    <button id="play">▶ Play</button>
+    <button id="reset" class="ghost">Reset</button>
+    <span class="clock">t = <b id="clk">0.00s</b></span>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw" style="background:var(--dim)"></i> waiting for rate-limiter slot</span>
+    <span><i class="sw" style="background:var(--azure)"></i> embedding (network round-trip)</span>
+    <span><i class="sw" style="background:var(--green)"></i> vector returned</span>
+  </div>
+
+  <div class="panel">
+    <div class="phead"><h2>Sequential</h2><span class="tag">await embed(chunk) — one at a time</span>
+      <span class="total">total <b id="seqT" style="color:var(--amber)">—</b></span></div>
+    <div class="track" id="seqTrack"></div>
+  </div>
+
+  <div class="panel">
+    <div class="phead"><h2>Parallel + rate-limited</h2><span class="tag">Promise.allSettled(chunks.map(embed))</span>
+      <span class="total">total <b id="parT" style="color:var(--green)">—</b></span></div>
+    <div class="track" id="parTrack"></div>
+  </div>
+
+  <div class="panel">
+    <div class="phead"><h2>Reattach by index</h2><span class="tag">results[i] → vectors[i]</span></div>
+    <div class="result">
+      <div class="vecwrap" id="vecs"></div>
+      <div class="note" id="speedup"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let N = 14, L = 500, R = 5;          // chunks, latency ms, rate/s
+const SCALE = 1;                      // 1ms sim = 1ms real
+let raf = null, t0 = 0, playing = false;
+
+function schedule() {
+  const interval = 1000 / R;
+  // Sequential: next starts when previous returns (rate never binds since L >= interval typically)
+  const seq = [];
+  let cursor = 0;
+  for (let i = 0; i < N; i++) {
+    const start = cursor;
+    const slot = start;               // no queueing, it's serial
+    const end = slot + L;
+    seq.push({ start, slot, end });
+    cursor = end;
+  }
+  // Parallel: all requested at t=0, each waits for its reserved rate slot, then latency overlaps
+  const par = [];
+  for (let i = 0; i < N; i++) {
+    const slot = i * interval;        // rate limiter hands out evenly-spaced slots
+    par.push({ start: 0, slot, end: slot + L });
+  }
+  const seqTotal = seq[N - 1].end;
+  const parTotal = Math.max(...par.map(p => p.end));
+  return { seq, par, seqTotal, parTotal, interval };
+}
+
+let model = schedule();
+
+function buildTrack(el, rows) {
+  el.innerHTML = "";
+  rows.forEach((r, i) => {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = `<div class="dot" data-i="${i}"></div>
+      <div class="lbl">c${i}</div>
+      <div class="bar"><div class="seg queue"></div><div class="seg embed"></div></div>`;
+    el.appendChild(row);
+  });
+  const ph = document.createElement("div"); ph.className = "playhead"; ph.style.left = "44px";
+  el.appendChild(ph);
+}
+
+function buildVecs() {
+  $("vecs").innerHTML = "";
+  for (let i = 0; i < N; i++) {
+    const v = document.createElement("div"); v.className = "vec"; v.dataset.i = i; v.textContent = "·";
+    $("vecs").appendChild(v);
+  }
+}
+
+function layout() {
+  model = schedule();
+  buildTrack($("seqTrack"), model.seq);
+  buildTrack($("parTrack"), model.par);
+  buildVecs();
+  $("seqT").textContent = "—"; $("parT").textContent = "—"; $("speedup").textContent = "";
+  render(0);
+}
+
+// bar geometry: label(34)+gaps ~ use % of the .bar element; axis max = seqTotal (both share it)
+function render(now) {
+  const axis = model.seqTotal;
+  const paint = (track, rows, isPar) => {
+    const bars = track.querySelectorAll(".bar");
+    const dots = track.querySelectorAll(".dot");
+    rows.forEach((r, i) => {
+      const bar = bars[i];
+      const q = bar.querySelector(".queue");
+      const e = bar.querySelector(".embed");
+      const pct = (ms) => (Math.max(0, Math.min(ms, axis)) / axis) * 100;
+      // queue segment: from start..slot
+      const qL = pct(r.start), qR = pct(Math.min(now, r.slot));
+      q.style.left = qL + "%"; q.style.width = Math.max(0, qR - qL) + "%";
+      // embed segment: from slot..end
+      const eL = pct(r.slot), eR = pct(Math.min(now, r.end));
+      e.style.left = eL + "%"; e.style.width = Math.max(0, eR - eL) + "%";
+      const done = now >= r.end, active = now >= r.slot && now < r.end;
+      e.classList.toggle("done", done);
+      dots[i].className = "dot" + (done ? " done" : active ? " active" : "");
+      if (isPar) {
+        const vec = $("vecs").children[i];
+        vec.classList.toggle("filled", done);
+        vec.textContent = done ? "▦" : "·";
+      }
+    });
+    const ph = track.querySelector(".playhead");
+    ph.style.left = `calc(44px + ${(Math.min(now, axis) / axis) * 100}% * (1 - 44px/100%))`;
+    // simpler: position within bar area (bars start after 44px label/dot). Use left offset + track width.
+    ph.style.left = `${44 + (Math.min(now, axis) / axis) * (track.clientWidth - 44)}px`;
+  };
+  paint($("seqTrack"), model.seq, false);
+  paint($("parTrack"), model.par, true);
+  $("clk").textContent = (now / 1000).toFixed(2) + "s";
+  if (now >= model.seqTotal) $("seqT").textContent = (model.seqTotal/1000).toFixed(2)+"s";
+  if (now >= model.parTotal) $("parT").textContent = (model.parTotal/1000).toFixed(2)+"s";
+  if (now >= model.parTotal && !$("speedup").textContent) {
+    const x = (model.seqTotal / model.parTotal).toFixed(1);
+    $("speedup").innerHTML = `Parallel finished in <b style="color:var(--green)">${(model.parTotal/1000).toFixed(2)}s</b> vs sequential <b style="color:var(--amber)">${(model.seqTotal/1000).toFixed(2)}s</b> — <b style="color:var(--azure)">~${x}× faster</b>, while never exceeding ${R} req/s.`;
+  }
+}
+
+function loop(ts) {
+  if (!t0) t0 = ts;
+  const now = (ts - t0) * SCALE;
+  render(now);
+  if (now < model.seqTotal + 300) raf = requestAnimationFrame(loop);
+  else { playing = false; $("play").textContent = "▶ Replay"; }
+}
+
+$("play").onclick = () => {
+  if (playing) return;
+  cancelAnimationFrame(raf); t0 = 0; playing = true; $("play").textContent = "● Playing";
+  layout(); raf = requestAnimationFrame(loop);
+};
+$("reset").onclick = () => { cancelAnimationFrame(raf); playing = false; t0 = 0; $("play").textContent="▶ Play"; layout(); };
+
+for (const [id, fmt, set] of [
+  ["N", v => v, v => N = +v],
+  ["L", v => v + "ms", v => L = +v],
+  ["R", v => v + " / s", v => R = +v],
+]) {
+  $(id).oninput = (e) => { set(e.target.value); $("v"+id).textContent = fmt(e.target.value); if(!playing) layout(); };
+}
+
+layout();
+</script>
+</body>
+</html>

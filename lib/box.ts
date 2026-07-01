@@ -98,17 +98,26 @@ export async function getValidAccessToken(): Promise<string> {
   return newTokens.accessToken;
 }
 
+const MAX_FILE_BYTES = Number(process.env.MAX_FILE_MB ?? 25) * 1024 * 1024;
+
 export async function downloadFile(
   fileId: string,
 ): Promise<{ name: string; buffer: Buffer }> {
   const accessToken = await getValidAccessToken();
   const client = clientFromAccessToken(accessToken);
 
-  const [file, stream] = await Promise.all([
-    client.files.getFileById(fileId),
-    client.downloads.downloadFile(fileId),
-  ]);
+  // Fetch metadata first and reject oversized files BEFORE pulling bytes into
+  // memory — protects against OOM and Interfaze request-size/timeout failures.
+  const file = await client.files.getFileById(fileId);
+  const size = Number(file.size ?? 0);
+  if (size > MAX_FILE_BYTES) {
+    throw new Error(
+      `File too large to process: ${(size / 1024 / 1024).toFixed(1)} MB ` +
+        `(max ${(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)} MB)`,
+    );
+  }
 
+  const stream = await client.downloads.downloadFile(fileId);
   if (!stream) {
     throw new Error(`Box returned no content for file ${fileId}`);
   }
@@ -281,4 +290,10 @@ export async function createWebhook(folderId: string): Promise<string> {
     throw new Error("Box did not return a webhook id");
   }
   return webhook.id;
+}
+
+export async function deleteWebhook(webhookId: string): Promise<void> {
+  const accessToken = await getValidAccessToken();
+  const client = clientFromAccessToken(accessToken);
+  await client.webhooks.deleteWebhookById(webhookId);
 }

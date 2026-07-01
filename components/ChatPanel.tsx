@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { ArrowUpIcon, MessageCircleDashedIcon } from "lucide-react";
@@ -11,6 +11,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@/components/ui/message-scroller";
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message";
 import InterfazeLogo from "@/components/InterfazeLogo";
@@ -35,6 +36,16 @@ function messageText(parts: UIMessage["parts"]): string {
   return parts.map((p) => (p.type === "text" ? p.text : "")).join("");
 }
 
+// Keeps the viewport pinned to the newest content while a response streams in.
+// `signal` changes on every token, so the effect re-fires as text grows.
+function StreamAutoScroll({ signal, active }: { signal: string; active: boolean }) {
+  const { scrollToEnd } = useMessageScroller();
+  useEffect(() => {
+    if (active) scrollToEnd();
+  }, [signal, active, scrollToEnd]);
+  return null;
+}
+
 export default function ChatPanel() {
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -42,8 +53,12 @@ export default function ChatPanel() {
   const [input, setInput] = useState("");
 
   const isBusy = status === "submitted" || status === "streaming";
-  const waiting =
-    isBusy && messages[messages.length - 1]?.role === "user";
+  const lastMessage = messages[messages.length - 1];
+  const waiting = isBusy && lastMessage?.role === "user";
+  // Grows with every streamed token → drives StreamAutoScroll.
+  const streamSignal = lastMessage
+    ? `${messages.length}:${messageText(lastMessage.parts).length}`
+    : "";
 
   function send() {
     const text = input.trim();
@@ -63,9 +78,6 @@ export default function ChatPanel() {
             Interfaze
           </h2>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-zinc-400">
-          RAG
-        </span>
       </header>
 
       <div className="min-h-0 flex-1 overflow-hidden">
@@ -148,6 +160,7 @@ export default function ChatPanel() {
               </MessageScrollerViewport>
 
               <MessageScrollerButton />
+              <StreamAutoScroll signal={streamSignal} active={isBusy} />
             </MessageScroller>
           )}
         </MessageScrollerProvider>
