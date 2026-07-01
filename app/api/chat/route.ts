@@ -2,7 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { embed } from "@/lib/jigsawstack";
 import { queryTopK } from "@/lib/vector";
-import { buildContext, buildSystemPrompt } from "@/lib/rag";
+import { buildContext, buildSystemPrompt } from "@/lib/prompt";
 import { interfazeLimiter } from "@/lib/ratelimit";
 import { getAllFileStatuses } from "@/lib/redis";
 
@@ -15,7 +15,7 @@ const interfaze = createOpenAI({
 
 // Minimum cosine similarity (Upstash normalizes to 0..1) for a chunk to count
 // as relevant. Below this we drop it rather than feeding noise to the model.
-const MIN_SCORE = Number(process.env.RAG_MIN_SCORE ?? 0.7);
+const MIN_SCORE = Number(process.env.MIN_SCORE ?? 0.7);
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();

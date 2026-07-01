@@ -1,6 +1,6 @@
-# Box RAG Demo
+# Box Demo
 
-A Next.js chatbot that syncs documents from Box and provides RAG-powered Q&A over them. Files uploaded to your Box account flow through Interfaze (OCR extraction), JigsawStack (embeddings), and Upstash Vector (semantic search), with live UI status updates via Redis pub/sub.
+A Next.js chatbot that syncs documents from Box and provides grounded Q&A over them. Files uploaded to your Box account flow through Interfaze (OCR extraction), JigsawStack (embeddings), and Upstash Vector (semantic search), with live UI status updates via Redis pub/sub.
 
 ## Architecture
 
@@ -153,13 +153,13 @@ Navigate to `http://localhost:3000`.
 3. **Ask a question in the Chat panel**
    - The app embeds your question, searches the Vector index for relevant chunks, and streams a grounded answer from OpenAI via Interfaze
 
-4. **Try uploading multiple files** to see them all indexed and searchable in one RAG session
+4. **Try uploading multiple files** to see them all indexed and searchable together in one session
 
 ---
 
 ## Testing
 
-Run all unit tests (chunk extraction, Redis status, Box signature validation, JigsawStack embedding parsing, RAG context building):
+Run all unit tests (chunk extraction, Redis status, Box signature validation, JigsawStack embedding parsing, context building):
 
 ```bash
 npm run test

@@ -12,7 +12,7 @@ describe("collectFiles", () => {
     const tree: Record<string, BoxItem[]> = {
       "0": [
         { type: "file", id: "f1", name: "a.pdf" },
-        { type: "folder", id: "sub", name: "rag-demo" },
+        { type: "folder", id: "sub", name: "reports" },
         { type: "web_link", id: "w1", name: "link" },
       ],
       sub: [{ type: "file", id: "f2", name: "b.pdf" }],

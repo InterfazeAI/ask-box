@@ -25,7 +25,7 @@ export default function Settings({ onSaved }: { onSaved: (url: string) => void }
         Backend URL
       </label>
       <p className="text-xs text-muted-foreground">
-        The base URL of your Box RAG app. Example: http://localhost:3000
+        The base URL of your Box app. Example: http://localhost:3000
       </p>
       <input
         id="base-url"

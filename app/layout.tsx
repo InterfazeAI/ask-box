@@ -6,7 +6,7 @@ import { GeistMono } from "geist/font/mono";
 export const metadata: Metadata = {
   title: "Box × Interfaze",
   description:
-    "Integration demo: Interfaze extracts, embeds, and indexes Box documents in real time for instant RAG.",
+    "Integration demo: Interfaze extracts, embeds, and indexes Box documents in real time for instant, grounded Q&A.",
 };
 
 export default function RootLayout({

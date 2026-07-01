@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Ask Box",
   "version": "0.1.0",
-  "description": "Chat with your Box RAG knowledge base from any tab.",
+  "description": "Chat with your Box knowledge base from any tab.",
   "permissions": ["storage", "sidePanel"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "action": {

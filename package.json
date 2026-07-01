@@ -1,5 +1,5 @@
 {
-  "name": "box-rag-demo",
+  "name": "box-demo",
   "private": true,
   "scripts": {
     "dev": "next dev",

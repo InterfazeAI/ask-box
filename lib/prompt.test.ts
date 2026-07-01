@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildContext, buildSystemPrompt } from "@/lib/rag";
+import { buildContext, buildSystemPrompt } from "@/lib/prompt";
 
 const chunks = [
   { fileId: "1", fileName: "a.pdf", chunkIdx: 0, text: "alpha" },
@@ -7,7 +7,7 @@ const chunks = [
   { fileId: "2", fileName: "b.docx", chunkIdx: 0, text: "gamma" },
 ];
 
-describe("rag", () => {
+describe("prompt", () => {
   it("builds numbered context and deduped sources", () => {
     const { context, sources } = buildContext(chunks);
     expect(context).toContain("[1]");
