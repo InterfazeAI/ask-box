@@ -1,4 +1,5 @@
 import ConnectBox from "@/components/ConnectBox";
+import SyncButton from "@/components/SyncButton";
 import FileList from "@/components/FileList";
 import ChatPanel from "@/components/ChatPanel";
 
@@ -15,7 +16,10 @@ export default function Home() {
               Chat with documents synced live from your Box folder.
             </p>
           </div>
-          <ConnectBox />
+          <div className="flex items-center gap-3">
+            <SyncButton />
+            <ConnectBox />
+          </div>
         </header>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

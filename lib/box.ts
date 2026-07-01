@@ -3,6 +3,7 @@ import { BoxClient, BoxDeveloperTokenAuth } from "box-typescript-sdk-gen";
 import { AuthorizationManager } from "box-typescript-sdk-gen/managers";
 import { readByteStream } from "box-typescript-sdk-gen/internal";
 import { getBoxTokens, setBoxTokens, type BoxTokens } from "@/lib/redis";
+import { collectFiles, type BoxFile, type BoxItem } from "@/lib/sync";
 
 export function getAuthorizeUrl(state: string): string {
   const p = new URLSearchParams({
@@ -114,6 +115,37 @@ export async function downloadFile(
 
   const buffer = await readByteStream(stream);
   return { name: file.name ?? fileId, buffer };
+}
+
+/**
+ * List every file in a Box folder tree (recursive), starting at rootFolderId.
+ * Used by the manual Sync flow to index files already in Box — listing the root
+ * folder ("0") is allowed, unlike creating a webhook on it. The recursion and
+ * pagination logic lives in lib/sync.ts (collectFiles); here we only bind it to
+ * the real Box client.
+ */
+export async function listFolderFilesRecursive(
+  rootFolderId: string,
+): Promise<BoxFile[]> {
+  const accessToken = await getValidAccessToken();
+  const client = clientFromAccessToken(accessToken);
+
+  const listPage = async (folderId: string, offset: number) => {
+    const res = await client.folders.getFolderItems(folderId, {
+      queryParams: { offset, limit: 1000 },
+    });
+    const items: BoxItem[] = (res.entries ?? []).map((e) => {
+      const entry = e as { type?: string; id?: string; name?: string };
+      return {
+        type: entry.type ?? "",
+        id: entry.id ?? "",
+        name: entry.name ?? entry.id ?? "",
+      };
+    });
+    return { items, totalCount: res.totalCount ?? items.length };
+  };
+
+  return collectFiles(listPage, rootFolderId);
 }
 
 export async function createWebhook(folderId: string): Promise<string> {
