@@ -4,7 +4,7 @@
 // Requires the same env as the app (UPSTASH_* / vector env).
 import { Redis } from "@upstash/redis";
 import { Index } from "@upstash/vector";
-
+ 
 const redis = Redis.fromEnv();
 const index = Index.fromEnv();
 
