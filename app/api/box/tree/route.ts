@@ -9,7 +9,7 @@ import { deleteFileChunks } from "@/lib/vector";
 import { enqueueProcess } from "@/lib/queue";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 800;
 
 function collectFiles(
   nodes: TreeNode[],

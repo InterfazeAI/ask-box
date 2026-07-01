@@ -7,7 +7,7 @@ import { deleteFileChunks } from "@/lib/vector";
 
 export const dynamic = "force-dynamic";
 // Inline processing can take a while for many/large files; allow a long request.
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 /**
  * Manual, webhook-free indexing of files already in Box. Lists the Box root

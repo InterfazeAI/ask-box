@@ -4,7 +4,7 @@ import { setFileStatus } from "@/lib/redis";
 import { enqueueProcess } from "@/lib/queue";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 800;
 
 /**
  * Upload one or more files into a Box folder from the dashboard. After each
