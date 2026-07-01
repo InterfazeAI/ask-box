@@ -8,9 +8,9 @@ const client = new OpenAI({
 export async function extractText(file: { name: string; buffer: Buffer }): Promise<string> {
   const dataUrl = `data:application/octet-stream;base64,${file.buffer.toString("base64")}`;
   const res = await client.chat.completions.create({
-    model: "interfaze-ocr",
+    model: "interfaze",
     messages: [
-      { role: "system", content: "Extract all text content from the document accurately. Return only the extracted text." },
+      { role: "system", content: "Extract all text content from the document accurately. Return only the extracted text, for pdf use markdown always" },
       {
         role: "user",
         content: [

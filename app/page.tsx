@@ -1,5 +1,4 @@
 import ConnectBox from "@/components/ConnectBox";
-import SyncButton from "@/components/SyncButton";
 import FolderTree from "@/components/FolderTree";
 import ChatPanel from "@/components/ChatPanel";
 import BoxLogo from "@/components/BoxLogo";
@@ -9,22 +8,18 @@ export default function Home() {
   return (
     <main className="relative z-10 min-h-screen">
       {/* ── Sticky glass nav ─────────────────────────────────────── */}
-      <nav className="sticky top-0 z-30 border-b border-white/[0.06] bg-background/60 backdrop-blur-xl">
+      <nav className="sticky top-0 z-30 border-b border-white/8 bg-background/60 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-md bg-white text-black">
-              <BoxLogo className="w-5" />
+            <span className="flex h-9 items-center justify-center rounded-md bg-white px-2.5 text-black">
+              <BoxLogo className="h-4 w-auto" />
             </span>
             <span className="text-sm text-zinc-600">×</span>
             <span className="flex h-9 items-center justify-center rounded-md bg-white px-2.5">
               <InterfazeLogo className="h-4 w-auto" />
             </span>
-            <span className="ml-1 hidden text-sm font-medium tracking-tight text-zinc-400 sm:inline">
-              Document Intelligence
-            </span>
           </div>
           <div className="flex items-center gap-3">
-            <SyncButton />
             <ConnectBox />
           </div>
         </div>

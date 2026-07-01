@@ -20,14 +20,41 @@ type SnapshotEvent = { type: "snapshot"; files: FileStatus[] };
 type UpdateEvent = { type: "update"; file: FileStatus };
 type StreamEvent = SnapshotEvent | UpdateEvent;
 
-const POLL_MS = 15000;
+const POLL_MS = 12000;
 
 type TreeActions = {
   requestUpload: (parentId: string) => void;
   startNewFolder: (parentId: string, parentName: string) => void;
   deleteFile: (id: string, name: string) => void;
+  deletingIds: Set<string>;
 };
 const TreeCtx = createContext<TreeActions | null>(null);
+
+const Spinner = ({ className = "size-4" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={`${className} animate-spin`} aria-hidden="true">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+  </svg>
+);
+
+/* Optimistic card shown while a file is uploading to Box. */
+function UploadingCard({ name }: { name: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3.5">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-zinc-400">
+        <Spinner className="size-4.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-zinc-100">{name}</p>
+        <p className="truncate font-mono text-[11px] text-zinc-400">uploading to Box…</p>
+      </div>
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-zinc-400">
+        <span className="size-2 rounded-full bg-status-amber animate-breathe" />
+        Uploading
+      </span>
+    </div>
+  );
+}
 
 function countFiles(nodes: TreeNode[]): number {
   let c = 0;
@@ -53,7 +80,7 @@ function IconButton({
       title={title}
       aria-label={title}
       onClick={onClick}
-      className={`flex size-7 items-center justify-center rounded-lg border border-white/8 bg-white/[0.03] text-zinc-400 transition-all hover:border-white/15 hover:bg-white/[0.07] hover:text-zinc-200 ${
+      className={`flex size-7 items-center justify-center rounded-lg border border-white/8 bg-white/[0.03] text-zinc-400 transition-all hover:border-white/15 hover:bg-white/[0.06] hover:text-zinc-200 ${
         hoverOnly ? "opacity-0 group-hover:opacity-100" : ""
       }`}
     >
@@ -87,6 +114,7 @@ function FileRow({
 }) {
   const actions = useContext(TreeCtx);
   const pad = { paddingLeft: depth * 18 };
+  const deleting = actions?.deletingIds.has(node.id) ?? false;
 
   // Indexed / processing / errored files get the full pipeline card.
   if (status) {
@@ -94,6 +122,7 @@ function FileRow({
       <div style={pad}>
         <FileCard
           status={status}
+          deleting={deleting}
           onDelete={() => actions?.deleteFile(node.id, node.name)}
         />
       </div>
@@ -104,28 +133,36 @@ function FileRow({
   return (
     <div
       style={pad}
-      className="group flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.01] px-4 py-3"
+      className={`group flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.03] px-4 py-3 ${
+        deleting ? "pointer-events-none opacity-50" : ""
+      }`}
     >
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-zinc-600">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.03] text-zinc-600">
         <svg viewBox="0 0 20 20" fill="currentColor" className="size-4.5" aria-hidden="true">
           <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
         </svg>
       </div>
       <span className="min-w-0 flex-1 truncate text-sm text-zinc-400">{node.name}</span>
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-zinc-500">
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-zinc-400">
         <span className="size-2 rounded-full bg-status-gray" />
         Not indexed
       </span>
-      <button
-        onClick={() => actions?.deleteFile(node.id, node.name)}
-        title="Delete from Box"
-        aria-label="Delete from Box"
-        className="flex size-6 shrink-0 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-all hover:bg-status-red/10 hover:text-status-red group-hover:opacity-100"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-        </svg>
-      </button>
+      {deleting ? (
+        <span className="flex size-6 shrink-0 items-center justify-center text-status-red">
+          <Spinner />
+        </span>
+      ) : (
+        <button
+          onClick={() => actions?.deleteFile(node.id, node.name)}
+          title="Delete from Box"
+          aria-label="Delete from Box"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-all hover:bg-status-red/10 hover:text-status-red"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
@@ -158,7 +195,7 @@ function FolderRow({
             fill="none"
             stroke="currentColor"
             strokeWidth={2.2}
-            className={`size-3.5 shrink-0 text-zinc-500 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+            className={`size-3.5 shrink-0 text-zinc-400 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
             aria-hidden="true"
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
@@ -169,16 +206,15 @@ function FolderRow({
           <span className="truncate text-sm font-medium text-zinc-200">{node.name}</span>
         </button>
 
-        <span className="shrink-0 font-mono text-[11px] text-zinc-500">
+        <span className="shrink-0 font-mono text-[11px] text-zinc-400">
           {count} file{count === 1 ? "" : "s"}
         </span>
         <div className="flex shrink-0 items-center gap-1">
-          <IconButton title="Upload file here" hoverOnly onClick={() => actions?.requestUpload(node.id)}>
+          <IconButton title="Upload file here" onClick={() => actions?.requestUpload(node.id)}>
             {IconUpload}
           </IconButton>
           <IconButton
             title="New subfolder"
-            hoverOnly
             onClick={() => actions?.startNewFolder(node.id, node.name)}
           >
             {IconFolderPlus}
@@ -243,9 +279,11 @@ export default function FolderTree() {
   const [statuses, setStatuses] = useState<Map<string, FileStatus>>(new Map());
   const [connected, setConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState<string[]>([]);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [newFolder, setNewFolder] = useState<{ parentId: string; parentName: string } | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   const inFlight = useRef(false);
   const mounted = useRef(true);
@@ -254,10 +292,10 @@ export default function FolderTree() {
 
   useEffect(() => () => void (mounted.current = false), []);
 
-  const runSync = useCallback(async () => {
+  const runSync = useCallback(async (silent = false) => {
     if (inFlight.current) return;
     inFlight.current = true;
-    setSyncing(true);
+    if (!silent) setSyncing(true);
     try {
       const res = await fetch("/api/box/tree", { cache: "no-store" });
       if (!res.ok) return;
@@ -318,49 +356,57 @@ export default function FolderTree() {
       },
       deleteFile: async (id, name) => {
         if (!window.confirm(`Delete "${name}" from Box? It will be moved to Box trash.`)) return;
-        setBusy(true);
+        setDeletingIds((prev) => new Set(prev).add(id));
         try {
           await fetch(`/api/box/file/${encodeURIComponent(id)}`, { method: "DELETE" });
+          await runSync();
         } finally {
-          setBusy(false);
-          runSync();
+          setDeletingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
         }
       },
+      deletingIds,
     }),
-    [runSync],
+    [runSync, deletingIds],
   );
 
   async function onFilesSelected(list: FileList | null) {
     if (!list || list.length === 0) return;
-    setBusy(true);
+    const files = Array.from(list);
+    setUploading(files.map((f) => f.name));
     try {
       const form = new FormData();
       form.append("parentId", uploadParent.current);
-      Array.from(list).forEach((f) => form.append("files", f));
+      files.forEach((f) => form.append("files", f));
       await fetch("/api/box/upload", { method: "POST", body: form });
+      await runSync();
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
-      setBusy(false);
-      runSync();
+      setUploading([]);
     }
   }
 
   async function submitNewFolder(e: FormEvent) {
     e.preventDefault();
     const name = newFolderName.trim();
-    if (!name || !newFolder) return;
-    setBusy(true);
+    if (!name || !newFolder || creatingFolder) return;
+    setCreatingFolder(true);
     try {
       await fetch("/api/box/folder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, parentId: newFolder.parentId }),
       });
+      // Refresh silently BEFORE closing the form so the new folder is already in
+      // the tree when the form disappears — avoids an "empty" flash in between.
+      await runSync(true);
     } finally {
-      setBusy(false);
+      setCreatingFolder(false);
       setNewFolder(null);
       setNewFolderName("");
-      runSync();
     }
   }
 
@@ -368,7 +414,13 @@ export default function FolderTree() {
   const activeCount = Array.from(statuses.values()).filter(
     (s) => s.stage === "extracting" || s.stage === "embedding",
   ).length;
-  const working = busy || syncing;
+  const workLabel =
+    uploading.length > 0
+      ? "Uploading"
+      : deletingIds.size > 0
+        ? "Deleting"
+        : "Syncing";
+  const working = syncing || uploading.length > 0 || deletingIds.size > 0;
 
   return (
     <section
@@ -383,12 +435,12 @@ export default function FolderTree() {
         onChange={(e) => onFilesSelected(e.target.files)}
       />
 
-      <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+      <header className="flex items-center justify-between gap-3 border-b border-white/8 px-5 py-4">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-medium tracking-tight text-white">
+          <h2 className="text-[15px] font-medium tracking-tight text-zinc-100">
             Box workspace
           </h2>
-          <p className="mt-0.5 font-mono text-[11px] text-zinc-500">
+          <p className="mt-0.5 font-mono text-[11px] text-zinc-400">
             {tree === null
               ? "loading folder…"
               : `${totalFiles} file${totalFiles === 1 ? "" : "s"} · auto-synced${
@@ -411,7 +463,7 @@ export default function FolderTree() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                {busy ? "Working" : "Syncing"}
+                {workLabel}
               </>
             ) : (
               <>
@@ -432,7 +484,7 @@ export default function FolderTree() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+      <div className="no-scrollbar flex-1 overflow-y-auto px-3 py-4">
         {newFolder && (
           <form
             onSubmit={submitNewFolder}
@@ -443,35 +495,60 @@ export default function FolderTree() {
             </svg>
             <input
               autoFocus
+              disabled={creatingFolder}
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Escape") {
+                if (e.key === "Escape" && !creatingFolder) {
                   setNewFolder(null);
                   setNewFolderName("");
                 }
               }}
-              placeholder={`New folder in ${newFolder.parentName}…`}
-              className="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-600"
+              placeholder={
+                creatingFolder
+                  ? `Creating “${newFolderName.trim()}”…`
+                  : `New folder in ${newFolder.parentName}…`
+              }
+              className="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-600 disabled:opacity-70"
             />
             <button
               type="submit"
-              disabled={!newFolderName.trim()}
-              className="rounded-lg bg-white px-3 py-1 text-xs font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!newFolderName.trim() || creatingFolder}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1 text-xs font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Create
+              {creatingFolder && <Spinner className="size-3 text-black" />}
+              {creatingFolder ? "Creating" : "Create"}
             </button>
             <button
               type="button"
+              disabled={creatingFolder}
               onClick={() => {
                 setNewFolder(null);
                 setNewFolderName("");
               }}
-              className="rounded-lg px-2 py-1 text-xs text-zinc-500 hover:text-zinc-300"
+              className="rounded-lg px-2 py-1 text-xs text-zinc-400 transition-colors hover:text-zinc-300 disabled:opacity-40"
             >
               Cancel
             </button>
           </form>
+        )}
+
+        {uploading.length > 0 && (
+          <div className="mb-3 space-y-2">
+            <AnimatePresence>
+              {uploading.map((name, i) => (
+                <motion.div
+                  key={`uploading-${i}-${name}`}
+                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
+                  <UploadingCard name={name} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         )}
 
         {tree === null ? (
@@ -479,7 +556,8 @@ export default function FolderTree() {
             Reading your Box folder…
           </p>
         ) : tree.length === 0 ? (
-          !newFolder && (
+          !newFolder &&
+          uploading.length === 0 && (
             <div className="flex flex-col items-center justify-center px-8 py-14 text-center">
               <div className="relative mb-5">
                 <div className="absolute inset-0 -z-10 rounded-full bg-white/10 blur-2xl" />
@@ -490,7 +568,7 @@ export default function FolderTree() {
                 </div>
               </div>
               <p className="text-sm font-medium text-zinc-200">Your Box is empty</p>
-              <p className="mt-1.5 max-w-xs text-sm text-zinc-500">
+              <p className="mt-1.5 max-w-xs text-sm text-zinc-400">
                 Use <span className="text-zinc-300">Upload</span> or{" "}
                 <span className="text-zinc-300">New folder</span> above — everything you
                 add is saved straight to Box and indexed by Interfaze.

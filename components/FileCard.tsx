@@ -123,9 +123,11 @@ function Rail({ status }: { status: FileStatus }) {
 export default function FileCard({
   status,
   onDelete,
+  deleting = false,
 }: {
   status: FileStatus;
   onDelete?: () => void;
+  deleting?: boolean;
 }) {
   const isError = status.stage === "error";
   const meta = STAGE_META[status.stage];
@@ -133,7 +135,9 @@ export default function FileCard({
   return (
     <div
       title={isError ? status.error : undefined}
-      className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.015] px-4 py-3.5 transition-all duration-300 hover:border-white/12 hover:bg-white/[0.03]"
+      className={`group relative overflow-hidden rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3.5 transition-all duration-300 hover:border-white/12 hover:bg-white/[0.03] ${
+        deleting ? "pointer-events-none opacity-50" : ""
+      }`}
     >
       {/* header row */}
       <div className="flex items-center justify-between gap-4">
@@ -148,7 +152,7 @@ export default function FileCard({
             {isError && status.error ? (
               <p className="truncate text-xs text-destructive">{status.error}</p>
             ) : (
-              <p className="truncate font-mono text-[11px] text-zinc-500">
+              <p className="truncate font-mono text-[11px] text-zinc-400">
                 {status.stage === "indexed" && typeof status.chunkCount === "number"
                   ? `${status.chunkCount} chunk${status.chunkCount === 1 ? "" : "s"} · vectorized`
                   : "document"}
@@ -163,18 +167,26 @@ export default function FileCard({
             <Dot className={meta.dot} pulse={meta.pulse} />
             {meta.label}
           </span>
-          {onDelete && (
-            <button
-              onClick={onDelete}
-              title="Delete from Box"
-              aria-label="Delete from Box"
-              className="flex size-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-all hover:bg-status-red/10 hover:text-status-red group-hover:opacity-100"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-              </svg>
-            </button>
-          )}
+          {onDelete &&
+            (deleting ? (
+              <span className="flex size-6 items-center justify-center text-status-red" title="Deleting…">
+                <svg viewBox="0 0 24 24" fill="none" className="size-4 animate-spin" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              </span>
+            ) : (
+              <button
+                onClick={onDelete}
+                title="Delete from Box"
+                aria-label="Delete from Box"
+                className="flex size-6 items-center justify-center rounded-md text-zinc-400 transition-all hover:bg-status-red/10 hover:text-status-red"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="size-4" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                </svg>
+              </button>
+            ))}
         </div>
       </div>
 

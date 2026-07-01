@@ -12,7 +12,8 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
-import { Message, MessageContent } from "@/components/ui/message";
+import { Message, MessageAvatar, MessageContent } from "@/components/ui/message";
+import InterfazeLogo from "@/components/InterfazeLogo";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import Markdown from "@/components/Markdown";
@@ -56,9 +57,9 @@ export default function ChatPanel() {
       className="panel animate-fade-up flex h-[640px] max-h-[80vh] flex-col overflow-hidden"
       style={{ animationDelay: "320ms" }}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+      <header className="flex items-center justify-between gap-3 border-b border-white/8 px-5 py-4">
         <div>
-          <h2 className="text-[15px] font-medium tracking-tight text-white">
+          <h2 className="text-[15px] font-medium tracking-tight text-zinc-100">
             Interfaze
           </h2>
         </div>
@@ -83,21 +84,23 @@ export default function ChatPanel() {
             </Empty>
           ) : (
             <MessageScroller className="h-full">
-              <MessageScrollerViewport className="p-4">
+              <MessageScrollerViewport className="no-scrollbar p-4">
                 <MessageScrollerContent aria-busy={isBusy} className="justify-end">
-                  {messages.map((m, i) => {
+                  {messages.map((m) => {
                     const isUser = m.role === "user";
                     return (
-                      <MessageScrollerItem
-                        key={m.id}
-                        messageId={m.id}
-                        scrollAnchor={!waiting && !error && i === messages.length - 1}
-                      >
+                      <MessageScrollerItem key={m.id} messageId={m.id}>
                         <Message align={isUser ? "end" : "start"}>
+                          {!isUser && (
+                            <MessageAvatar className="size-8 rounded-lg bg-white p-1.5">
+                              <InterfazeLogo className="w-full" />
+                            </MessageAvatar>
+                          )}
                           <MessageContent>
                             <Bubble
                               align={isUser ? "end" : "start"}
                               variant={isUser ? "default" : "muted"}
+                              className="animate-msg-in"
                             >
                               <BubbleContent
                                 className={isUser ? "whitespace-pre-wrap" : ""}
@@ -116,10 +119,13 @@ export default function ChatPanel() {
                   })}
 
                   {waiting && (
-                    <MessageScrollerItem messageId="__thinking__" scrollAnchor>
+                    <MessageScrollerItem messageId="__thinking__">
                       <Message align="start">
+                        <MessageAvatar className="size-8 rounded-lg bg-white p-1.5">
+                          <InterfazeLogo className="w-full" />
+                        </MessageAvatar>
                         <MessageContent>
-                          <Bubble align="start" variant="muted">
+                          <Bubble align="start" variant="muted" className="animate-msg-in">
                             <BubbleContent>
                               <span className="shimmer">Thinking…</span>
                             </BubbleContent>
@@ -130,7 +136,7 @@ export default function ChatPanel() {
                   )}
 
                   {error && (
-                    <MessageScrollerItem messageId="__error__" scrollAnchor>
+                    <MessageScrollerItem messageId="__error__">
                       <Marker className="text-destructive">
                         <MarkerContent>
                           Something went wrong: {error.message}
@@ -147,7 +153,7 @@ export default function ChatPanel() {
         </MessageScrollerProvider>
       </div>
 
-      <div className="border-t border-white/[0.06] p-3">
+      <div className="border-t border-white/8 p-3">
         <form
           onSubmit={(e) => {
             e.preventDefault();

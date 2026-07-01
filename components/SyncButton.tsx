@@ -30,7 +30,7 @@ export default function SyncButton() {
   return (
     <div className="flex items-center gap-2.5">
       {result && (
-        <span className="hidden font-mono text-[11px] text-zinc-500 md:inline">
+        <span className="hidden font-mono text-[11px] text-zinc-400 md:inline">
           {result}
         </span>
       )}

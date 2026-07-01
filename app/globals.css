@@ -278,6 +278,30 @@
   animation: enter 0.5s ease-in-out both;
 }
 
+/* Hide scrollbars while keeping scroll functionality */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Chat bubble entrance ───────────────────────────────────────── */
+@keyframes msg-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-msg-in {
+  animation: msg-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Slow breathing glow for hero / status accents */
 @keyframes breathe {
   0%,
