@@ -200,3 +200,30 @@ npm run test:watch
 - **Upstash QStash** — async job queue
 - **Vercel AI SDK** — streaming chat responses
 - **Tailwind** — UI styling
+
+## Chrome Extension — Ask Box
+
+A Chrome side-panel extension to chat with your indexed Box documents from any
+tab. It reuses this app's `/api/chat` backend and chat UI.
+
+### Build & load
+
+```bash
+# from the repo root (ensures runtime deps are installed)
+npm install
+
+cd extension
+npm install
+npm run build        # outputs extension/dist/
+# or: npm run dev    # watch mode, rebuilds on change
+```
+
+1. Open `chrome://extensions`, enable **Developer mode**.
+2. Click **Load unpacked** and select `extension/dist/`.
+3. Click the **Ask Box** toolbar icon to open the side panel.
+4. Click the gear icon and set the **Backend URL** (default `http://localhost:3000`),
+   then Save.
+5. Ask questions about your indexed Box documents.
+
+Requires Chrome 114+ (Side Panel API). The backend URL is stored in
+`chrome.storage.sync`; switch it any time to point at a deployed instance.
