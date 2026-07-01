@@ -19,7 +19,15 @@ export default function Home() {
             </span>
             <span className="mx-1 hidden h-5 w-px bg-white/10 sm:block" />
             <span className="hidden text-sm text-zinc-500 sm:inline">Powered by</span>
-            <InterfazeWordmark className="h-5 w-auto" />
+            <a
+              href="https://interfaze.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Interfaze"
+              className="transition-opacity hover:opacity-80"
+            >
+              <InterfazeWordmark className="h-5 w-auto" />
+            </a>
           </div>
           <div className="flex items-center gap-3">
             <ConnectBox />
