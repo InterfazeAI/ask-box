@@ -1,3 +1,4 @@
+import type { FileStatus } from "@/lib/redis";
 import { getBaseUrl, getStoredSid, clearStoredSid } from "./storage";
 
 export class UnauthorizedError extends Error {
@@ -20,9 +21,9 @@ export async function authedFetch(path: string, init: RequestInit = {}): Promise
   return res;
 }
 
-export async function getFiles(): Promise<Array<{ name: string; stage: string; updatedAt: number }>> {
+export async function getFiles(): Promise<FileStatus[]> {
   const res = await authedFetch("/api/box/files");
   if (!res.ok) throw new Error(`files request failed: ${res.status}`);
-  const data = (await res.json()) as { files: Array<{ name: string; stage: string; updatedAt: number }> };
+  const data = (await res.json()) as { files: FileStatus[] };
   return data.files;
 }
