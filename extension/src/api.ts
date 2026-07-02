@@ -1,4 +1,5 @@
 import type { FileStatus } from "@/lib/redis";
+import type { TreeNode } from "@/lib/box";
 import { getBaseUrl, getStoredSid, clearStoredSid } from "./storage";
 
 export class UnauthorizedError extends Error {
@@ -21,9 +22,27 @@ export async function authedFetch(path: string, init: RequestInit = {}): Promise
   return res;
 }
 
-export async function getFiles(): Promise<FileStatus[]> {
-  const res = await authedFetch("/api/box/files");
-  if (!res.ok) throw new Error(`files request failed: ${res.status}`);
-  const data = (await res.json()) as { files: FileStatus[] };
-  return data.files;
+/**
+ * The Box folder tree plus index statuses. Fetching this also auto-enqueues any
+ * brand-new Box files for indexing server-side — so polling it is the auto-sync.
+ */
+export async function getTree(): Promise<{ tree: TreeNode[]; statuses: FileStatus[] }> {
+  const res = await authedFetch("/api/box/tree");
+  if (!res.ok) throw new Error(`tree request failed: ${res.status}`);
+  return (await res.json()) as { tree: TreeNode[]; statuses: FileStatus[] };
+}
+
+export type SyncResult = {
+  total: number;
+  indexed: number;
+  skipped: number;
+  failed: number;
+  removed: number;
+};
+
+/** Manually run a full Box→index sync now (synchronous on the server). */
+export async function runSync(): Promise<SyncResult> {
+  const res = await authedFetch("/api/sync", { method: "POST" });
+  if (!res.ok) throw new Error(`sync failed: ${res.status}`);
+  return (await res.json()) as SyncResult;
 }
