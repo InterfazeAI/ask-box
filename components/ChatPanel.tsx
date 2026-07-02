@@ -49,9 +49,10 @@ function StreamAutoScroll({ signal, active }: { signal: string; active: boolean 
 export default function ChatPanel({
   api = "/api/chat",
   className,
-}: { api?: string; className?: string } = {}) {
+  headers,
+}: { api?: string; className?: string; headers?: Record<string, string> } = {}) {
   const { messages, sendMessage, status, error } = useChat({
-    transport: new DefaultChatTransport({ api }),
+    transport: new DefaultChatTransport({ api, headers }),
   });
   const [input, setInput] = useState("");
 
