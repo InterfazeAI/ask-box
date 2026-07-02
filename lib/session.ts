@@ -56,6 +56,14 @@ export async function verifySid(
 }
 
 export async function getSid(req: NextRequest): Promise<string | null> {
+  // The extension can't rely on the SameSite=Lax cookie cross-site, so it sends
+  // the signed sid as a header instead. Verify that first, then fall back to
+  // the cookie for the web app.
+  const header = req.headers.get("x-askbox-sid");
+  if (header) {
+    const fromHeader = await verifySid(header);
+    if (fromHeader) return fromHeader;
+  }
   return verifySid(req.cookies.get("sid")?.value);
 }
 
