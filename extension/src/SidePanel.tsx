@@ -126,7 +126,20 @@ export default function SidePanel() {
         <TabButton active={tab === "settings"} onClick={() => setTab("settings")} icon={<SettingsIcon className="size-3.5" />} label="Settings" />
       </header>
 
-      {tab === "settings" ? (
+      {/* Chat stays mounted across tab switches so the conversation persists;
+          it is hidden (not unmounted) when another tab is active. The `key`
+          still remounts it when the backend URL or account changes, so a new
+          backend / session takes effect immediately. */}
+      <div className={tab === "chat" ? "min-h-0 flex-1" : "hidden"}>
+        <ChatPanel
+          key={`${baseUrl}:${sid}`}
+          api={`${baseUrl}/api/chat`}
+          headers={{ "x-askbox-sid": sid }}
+          className="flex h-full flex-col overflow-hidden"
+        />
+      </div>
+      {tab === "files" && <Files onUnauthorized={() => setSid(null)} />}
+      {tab === "settings" && (
         <Settings
           onSaved={(url) => {
             setBaseUrl(url);
@@ -134,19 +147,6 @@ export default function SidePanel() {
           }}
           onDisconnect={handleDisconnect}
         />
-      ) : tab === "files" ? (
-        <Files onUnauthorized={() => setSid(null)} />
-      ) : (
-        // `key` remounts the chat (and its transport) when the URL or session
-        // changes, so a new backend / account takes effect immediately.
-        <div className="min-h-0 flex-1">
-          <ChatPanel
-            key={`${baseUrl}:${sid}`}
-            api={`${baseUrl}/api/chat`}
-            headers={{ "x-askbox-sid": sid }}
-            className="flex h-full flex-col overflow-hidden"
-          />
-        </div>
       )}
     </div>
   );
