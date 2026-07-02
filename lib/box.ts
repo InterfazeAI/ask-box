@@ -14,6 +14,28 @@ export function getAuthorizeUrl(state: string): string {
   return `https://account.box.com/api/oauth2/authorize?${p}`;
 }
 
+/** Chrome extension OAuth redirect URIs are always https://<id>.chromiumapp.org/. */
+export function isValidExtensionRedirectUri(uri: string): boolean {
+  try {
+    const u = new URL(uri);
+    return u.protocol === "https:" && u.hostname.endsWith(".chromiumapp.org");
+  } catch {
+    return false;
+  }
+}
+
+/** Authorize URL for the extension flow — same as getAuthorizeUrl but with a
+ *  caller-supplied redirect URI (the extension's chromiumapp.org callback). */
+export function getExtensionAuthorizeUrl(state: string, redirectUri: string): string {
+  const p = new URLSearchParams({
+    response_type: "code",
+    client_id: process.env.BOX_CLIENT_ID!,
+    redirect_uri: redirectUri,
+    state,
+  });
+  return `https://account.box.com/api/oauth2/authorize?${p}`;
+}
+
 /**
  * We manage token persistence ourselves via Redis (lib/redis.ts), rather than
  * relying on the SDK's BoxOAuth in-memory/custom TokenStorage. So OAuth token
