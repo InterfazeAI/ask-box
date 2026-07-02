@@ -14,8 +14,10 @@ export async function getBaseUrl(): Promise<string> {
   return (result[KEY] as string) || DEFAULT_BASE_URL;
 }
 
-export async function setBaseUrl(url: string): Promise<void> {
-  await chrome.storage.sync.set({ [KEY]: normalizeBaseUrl(url) });
+export async function setBaseUrl(url: string): Promise<string> {
+  const normalized = normalizeBaseUrl(url);
+  await chrome.storage.sync.set({ [KEY]: normalized });
+  return normalized;
 }
 
 // The session token is a credential, so it lives in local (not synced) storage.
