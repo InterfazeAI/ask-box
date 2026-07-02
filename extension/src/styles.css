@@ -13,10 +13,18 @@
   --font-geist-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* The toolbar popup has no intrinsic size — it collapses to its content — so
+   fix explicit dimensions. 400x600 is the largest a Chromium popup allows. */
+html,
+body {
+  width: 400px;
+  height: 600px;
+}
+
 html,
 body,
 #root {
-  height: 100%;
+  height: 600px;
   margin: 0;
 }
 

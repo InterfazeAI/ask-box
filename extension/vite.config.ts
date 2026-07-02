@@ -14,18 +14,5 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        sidepanel: path.resolve(__dirname, "index.html"),
-        background: path.resolve(__dirname, "src/background.ts"),
-      },
-      output: {
-        // Keep the service worker at a stable path the manifest references.
-        entryFileNames: (chunk) =>
-          chunk.name === "background" ? "background.js" : "assets/[name]-[hash].js",
-        chunkFileNames: "assets/[name]-[hash].js",
-        assetFileNames: "assets/[name]-[hash][extname]",
-      },
-    },
   },
 });
