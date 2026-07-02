@@ -4,6 +4,7 @@ import { chunkText } from "@/lib/chunk";
 import { embed } from "@/lib/jigsawstack";
 import { upsertChunks } from "@/lib/vector";
 import { setFileStatus } from "@/lib/redis";
+import { isVideoFile } from "@/lib/sync";
 
 /**
  * Download a Box file, OCR it, chunk, embed, and upsert into the vector index,
@@ -23,6 +24,11 @@ export async function processFile(
     await setFileStatus(boxUserId, { fileId, name, stage: "extracting", updatedAt: Date.now() });
     const file = await downloadFile(boxUserId, fileId);
     name = file.name;
+    // Never embed video files — they have no extractable text. Guard here too
+    // in case one slips past the sync/tree enqueue filters.
+    if (isVideoFile(name)) {
+      throw new Error("Video files are not supported for indexing");
+    }
     const text = await extractText(file);
     const chunks = chunkText(text);
 

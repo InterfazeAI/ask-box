@@ -7,6 +7,7 @@ import {
 } from "@/lib/redis";
 import { deleteFileChunks } from "@/lib/vector";
 import { enqueueProcess } from "@/lib/queue";
+import { isVideoFile } from "@/lib/sync";
 import { resolveBoxUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -60,8 +61,9 @@ export async function GET(req: NextRequest) {
   );
 
   // Auto-enqueue brand-new files (never seen before). Mark queued first so a
-  // subsequent poll won't enqueue them again.
-  const fresh = files.filter((f) => !known.has(f.id));
+  // subsequent poll won't enqueue them again. Video files are skipped — they
+  // carry no extractable text to embed.
+  const fresh = files.filter((f) => !known.has(f.id) && !isVideoFile(f.name));
   await Promise.all(
     fresh.map(async (f) => {
       await setFileStatus(boxUserId, {

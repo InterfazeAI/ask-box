@@ -33,10 +33,29 @@ export async function collectFiles(
   return files;
 }
 
+// Video containers we never OCR/embed — there's no text to extract, so
+// processing them just wastes download/extract calls (and can error out).
+const VIDEO_EXTENSIONS = new Set([
+  "mp4", "m4v", "mov", "avi", "mkv", "webm", "flv", "wmv", "mpeg", "mpg",
+  "mpe", "m2v", "3gp", "3g2", "ogv", "mts", "m2ts", "ts", "vob", "f4v",
+  "asf", "rm", "rmvb", "divx", "mxf",
+]);
+
+/**
+ * True when a file name looks like a video by its extension. Video files carry
+ * no extractable text, so they must be excluded from the embed pipeline.
+ */
+export function isVideoFile(name: string): boolean {
+  const dot = name.lastIndexOf(".");
+  if (dot === -1) return false;
+  return VIDEO_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+}
+
 /**
  * Given all Box files and the current Redis statuses, return the files that
  * still need indexing — i.e. everything not already at the "indexed" stage.
  * Files stuck mid-pipeline (queued/extracting/embedding/error) are re-synced.
+ * Video files are skipped outright — they have no text to embed.
  */
 export function selectFilesToSync(
   files: BoxFile[],
@@ -45,7 +64,7 @@ export function selectFilesToSync(
   const indexed = new Set(
     statuses.filter((s) => s.stage === "indexed").map((s) => s.fileId),
   );
-  return files.filter((f) => !indexed.has(f.id));
+  return files.filter((f) => !indexed.has(f.id) && !isVideoFile(f.name));
 }
 
 /**

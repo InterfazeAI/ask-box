@@ -3,6 +3,7 @@ import {
   collectFiles,
   selectFilesToSync,
   selectFilesToRemove,
+  isVideoFile,
   type BoxItem,
 } from "@/lib/sync";
 import type { FileStatus } from "@/lib/redis";
@@ -70,6 +71,31 @@ describe("selectFilesToSync", () => {
       "f1",
       "f2",
     ]);
+  });
+});
+
+describe("isVideoFile", () => {
+  it("detects common video extensions (case-insensitive)", () => {
+    for (const name of ["clip.mp4", "movie.MOV", "a.b.webm", "x.MKV", "rec.avi"]) {
+      expect(isVideoFile(name)).toBe(true);
+    }
+  });
+
+  it("does not flag documents or files without extensions", () => {
+    for (const name of ["a.pdf", "notes.txt", "sheet.xlsx", "README", "mp4"]) {
+      expect(isVideoFile(name)).toBe(false);
+    }
+  });
+});
+
+describe("selectFilesToSync — video files", () => {
+  it("excludes video files from syncing", () => {
+    const files = [
+      { id: "f1", name: "doc.pdf" },
+      { id: "f2", name: "clip.mp4" },
+      { id: "f3", name: "talk.MOV" },
+    ];
+    expect(selectFilesToSync(files, []).map((f) => f.id)).toEqual(["f1"]);
   });
 });
 
