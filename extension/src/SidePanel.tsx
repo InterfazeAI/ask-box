@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { FolderIcon, MessageSquareIcon, SettingsIcon } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
+import BoxLogo from "@/components/BoxLogo";
+import InterfazeWordmark from "@/components/InterfazeWordmark";
 import { getBaseUrl, getStoredSid, setBaseUrl as persistBaseUrl } from "./storage";
 import { connectBox, disconnect } from "./auth";
 import Settings from "./Settings";
@@ -66,7 +68,10 @@ export default function SidePanel() {
   if (!sid) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <h1 className="text-[15px] font-medium tracking-tight text-zinc-100">Ask Box</h1>
+        <span className="flex h-11 items-center justify-center rounded-lg bg-white px-3 text-black">
+          <BoxLogo className="h-5 w-auto" />
+        </span>
+        <h1 className="text-[15px] font-semibold tracking-tight text-zinc-100">Ask Box</h1>
         <p className="text-sm text-muted-foreground">
           Connect your Box account to chat with your knowledge base.
         </p>
@@ -91,14 +96,31 @@ export default function SidePanel() {
             className="rounded-md border border-white/10 bg-transparent px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-white/25"
           />
         </div>
+        <div className="mt-4 flex items-center gap-2 text-[11px] text-zinc-500">
+          <span>Powered by</span>
+          <a
+            href="https://interfaze.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Interfaze"
+            className="transition-opacity hover:opacity-80"
+          >
+            <InterfazeWordmark className="h-4 w-auto" />
+          </a>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex items-center gap-1 border-b border-white/8 px-2 py-1.5">
-        <h1 className="mr-auto px-2 text-[15px] font-medium tracking-tight text-zinc-100">Ask Box</h1>
+      <header className="flex items-center gap-1.5 border-b border-white/8 px-2.5 py-1.5">
+        <div className="mr-auto flex items-center gap-2">
+          <span className="flex h-6 items-center justify-center rounded bg-white px-1.5 text-black">
+            <BoxLogo className="h-3 w-auto" />
+          </span>
+          <span className="text-[14px] font-semibold tracking-tight text-white">Ask Box</span>
+        </div>
         <TabButton active={tab === "chat"} onClick={() => setTab("chat")} icon={<MessageSquareIcon className="size-3.5" />} label="Chat" />
         <TabButton active={tab === "files"} onClick={() => setTab("files")} icon={<FolderIcon className="size-3.5" />} label="Files" />
         <TabButton active={tab === "settings"} onClick={() => setTab("settings")} icon={<SettingsIcon className="size-3.5" />} label="Settings" />
