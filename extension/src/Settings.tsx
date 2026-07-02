@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { getBaseUrl, setBaseUrl, normalizeBaseUrl } from "./storage";
 
-export default function Settings({ onSaved }: { onSaved: (url: string) => void }) {
+export default function Settings({
+  onSaved,
+  onDisconnect,
+}: {
+  onSaved: (url: string) => void;
+  onDisconnect: () => void;
+}) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +48,13 @@ export default function Settings({ onSaved }: { onSaved: (url: string) => void }
         className="mt-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
       >
         Save
+      </button>
+      <button
+        type="button"
+        onClick={onDisconnect}
+        className="mt-2 rounded-md border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5"
+      >
+        Disconnect Box
       </button>
     </div>
   );
