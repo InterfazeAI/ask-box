@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { FolderIcon, MessageSquareIcon, SettingsIcon } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
 import BoxLogo from "@/components/BoxLogo";
-import InterfazeWordmark from "@/components/InterfazeWordmark";
 import { getBaseUrl, getStoredSid, setBaseUrl as persistBaseUrl } from "./storage";
 import { connectBox, disconnect } from "./auth";
 import Settings from "./Settings";
@@ -95,18 +94,6 @@ export default function SidePanel() {
             onChange={(e) => setUrlInput(e.target.value)}
             className="rounded-md border border-white/10 bg-transparent px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-white/25"
           />
-        </div>
-        <div className="mt-4 flex items-center gap-2 text-[11px] text-zinc-500">
-          <span>Powered by</span>
-          <a
-            href="https://interfaze.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Interfaze"
-            className="transition-opacity hover:opacity-80"
-          >
-            <InterfazeWordmark className="h-4 w-auto" />
-          </a>
         </div>
       </div>
     );
