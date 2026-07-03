@@ -1,24 +1,19 @@
-// Per-browser action behavior.
-//
-// Chrome implements the Side Panel API, so we open the side panel when the
-// toolbar icon is clicked. A `default_popup` (declared in the manifest) takes
-// precedence over the side panel, so we must clear it at runtime for the panel
-// to open.
-//
-// Arc does NOT implement chrome.sidePanel (and never fires action.onClicked),
-// so the only mechanism it honors is the manifest's `default_popup`. There we
-// leave the popup untouched.
-function configureActionBehavior() {
-  if (chrome.sidePanel?.setPanelBehavior) {
-    // Chromium browsers with the Side Panel API (Chrome, Edge, Brave, …).
-    chrome.sidePanel
-      .setPanelBehavior({ openPanelOnActionClick: true })
-      // Clear the manifest popup so the click opens the side panel instead.
-      .then(() => chrome.action.setPopup({ popup: "" }))
-      .catch((err) => console.error("Ask Box: side panel setup failed", err));
-  }
-  // Arc (no chrome.sidePanel): keep the manifest's default_popup.
-}
+import { applySidePanelMode, syncSidePanelMode } from "./displayMode";
+import { DISPLAY_MODE_KEY } from "./storage";
 
-chrome.runtime.onInstalled.addListener(configureActionBehavior);
-chrome.runtime.onStartup.addListener(configureActionBehavior);
+// Apply the last-detected display mode (popup vs Chrome side panel) on load.
+// Defaults to popup, which works everywhere including Arc.
+chrome.runtime.onInstalled.addListener(() => {
+  syncSidePanelMode();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  syncSidePanelMode();
+});
+
+// The content script (detect.ts) writes the detected mode here; apply it live.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[DISPLAY_MODE_KEY]) {
+    applySidePanelMode(changes[DISPLAY_MODE_KEY].newValue === "sidepanel");
+  }
+});
