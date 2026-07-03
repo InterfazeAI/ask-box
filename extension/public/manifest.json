@@ -8,7 +8,7 @@
   "host_permissions": ["http://*/*", "https://*/*"],
   "action": {
     "default_title": "Ask Box",
-    "default_popup": "index.html",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icon16.png",
       "32": "icon32.png",
