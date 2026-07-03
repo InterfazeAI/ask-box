@@ -1,6 +1,6 @@
 import type { FileStatus } from "@/lib/redis";
 import type { TreeNode } from "@/lib/box";
-import { getBaseUrl, getStoredSid, clearStoredSid } from "./storage";
+import { BASE_URL, getStoredSid, clearStoredSid } from "./storage";
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -10,11 +10,10 @@ export class UnauthorizedError extends Error {
 }
 
 export async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const base = await getBaseUrl();
   const sid = await getStoredSid();
   const headers = new Headers(init.headers);
   if (sid) headers.set("x-askbox-sid", sid);
-  const res = await fetch(`${base}${path}`, { ...init, headers });
+  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
   if (res.status === 401) {
     await clearStoredSid();
     throw new UnauthorizedError();

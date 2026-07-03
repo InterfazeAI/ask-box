@@ -1,24 +1,5 @@
-const KEY = "askbox_base_url";
-export const DEFAULT_BASE_URL = "https://box-demo.interfaze.ai";
-
-export function normalizeBaseUrl(url: string): string {
-  const trimmed = url.trim().replace(/\/+$/, "");
-  if (!/^https?:\/\//.test(trimmed)) {
-    throw new Error("Base URL must start with http:// or https://");
-  }
-  return trimmed;
-}
-
-export async function getBaseUrl(): Promise<string> {
-  const result = await chrome.storage.sync.get(KEY);
-  return (result[KEY] as string) || DEFAULT_BASE_URL;
-}
-
-export async function setBaseUrl(url: string): Promise<string> {
-  const normalized = normalizeBaseUrl(url);
-  await chrome.storage.sync.set({ [KEY]: normalized });
-  return normalized;
-}
+// The extension always talks to the production backend.
+export const BASE_URL = "https://box-demo.interfaze.ai";
 
 // The session token is a credential, so it lives in local (not synced) storage.
 const SID_KEY = "askbox_sid";

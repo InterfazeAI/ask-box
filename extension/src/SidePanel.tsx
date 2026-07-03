@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FolderIcon, MessageSquareIcon, SettingsIcon } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
 import BoxLogo from "@/components/BoxLogo";
-import { getBaseUrl, getStoredSid, setBaseUrl as persistBaseUrl } from "./storage";
+import { BASE_URL, getStoredSid } from "./storage";
 import { connectBox, disconnect } from "./auth";
 import Settings from "./Settings";
 import Files from "./Files";
@@ -12,14 +12,11 @@ type Tab = "chat" | "files" | "settings";
 export default function SidePanel() {
   const [ready, setReady] = useState(false);
   const [sid, setSid] = useState<string | null>(null);
-  const [baseUrl, setBaseUrl] = useState<string>("");
   const [tab, setTab] = useState<Tab>("chat");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [urlInput, setUrlInput] = useState("");
 
   const refresh = useCallback(async () => {
-    setBaseUrl(await getBaseUrl());
     setSid(await getStoredSid());
     setReady(true);
   }, []);
@@ -28,19 +25,10 @@ export default function SidePanel() {
     refresh();
   }, [refresh]);
 
-  // Keep the pre-auth backend field in sync with the stored base URL.
-  useEffect(() => {
-    setUrlInput(baseUrl);
-  }, [baseUrl]);
-
   async function handleConnect() {
     setConnecting(true);
     setError(null);
     try {
-      // Persist (and validate) the chosen backend before starting OAuth, so
-      // connectBox() and later requests hit the right origin.
-      const normalized = await persistBaseUrl(urlInput);
-      setBaseUrl(normalized);
       await connectBox();
       await refresh();
       setTab("chat");
@@ -83,18 +71,6 @@ export default function SidePanel() {
           {connecting ? "Connecting…" : "Connect Box"}
         </button>
         {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="mt-4 flex w-full flex-col gap-1 text-left">
-          <label htmlFor="connect-base-url" className="text-[11px] text-zinc-500">
-            Backend URL
-          </label>
-          <input
-            id="connect-base-url"
-            type="text"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            className="rounded-md border border-white/10 bg-transparent px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-white/25"
-          />
-        </div>
       </div>
     );
   }
@@ -115,26 +91,17 @@ export default function SidePanel() {
 
       {/* Chat stays mounted across tab switches so the conversation persists;
           it is hidden (not unmounted) when another tab is active. The `key`
-          still remounts it when the backend URL or account changes, so a new
-          backend / session takes effect immediately. */}
+          remounts it when the account changes so a new session takes effect. */}
       <div className={tab === "chat" ? "min-h-0 flex-1" : "hidden"}>
         <ChatPanel
-          key={`${baseUrl}:${sid}`}
-          api={`${baseUrl}/api/chat`}
+          key={sid}
+          api={`${BASE_URL}/api/chat`}
           headers={{ "x-askbox-sid": sid }}
           className="flex h-full flex-col overflow-hidden"
         />
       </div>
       {tab === "files" && <Files onUnauthorized={() => setSid(null)} />}
-      {tab === "settings" && (
-        <Settings
-          onSaved={(url) => {
-            setBaseUrl(url);
-            setTab("chat");
-          }}
-          onDisconnect={handleDisconnect}
-        />
-      )}
+      {tab === "settings" && <Settings onDisconnect={handleDisconnect} />}
     </div>
   );
 }
