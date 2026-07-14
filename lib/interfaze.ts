@@ -22,6 +22,5 @@ export async function extractText(file: { name: string; buffer: Buffer }): Promi
       },
     ],
   });
-  console.log(JSON.stringify(res.choices[0]?.message?.content, null, 2 ));
   return res.choices[0]?.message?.content ?? "";
 }
