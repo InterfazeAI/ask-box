@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { uploadFileToBox } from "@/lib/box";
+import { BoxAuthError, uploadFileToBox } from "@/lib/box";
 import { setFileStatus } from "@/lib/redis";
 import { enqueueProcess } from "@/lib/queue";
 import { resolveBoxUserId } from "@/lib/session";
@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
       await enqueueProcess(boxUserId, created.id);
     }
   } catch (err) {
+    if (err instanceof BoxAuthError) {
+      return NextResponse.json({ error: "box_disconnected", uploaded }, { status: 401 });
+    }
     console.error("[upload] failed", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "upload failed", uploaded },

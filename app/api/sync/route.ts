@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listFolderFilesRecursive } from "@/lib/box";
+import { BoxAuthError, listFolderFilesRecursive } from "@/lib/box";
 import { selectFilesToSync, selectFilesToRemove } from "@/lib/sync";
 import { processFile } from "@/lib/process";
 import { setFileStatus, getAllFileStatuses, removeFileStatus } from "@/lib/redis";
@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
   try {
     files = await listFolderFilesRecursive(boxUserId, "0");
   } catch (err) {
+    if (err instanceof BoxAuthError) {
+      return NextResponse.json({ error: "box_disconnected" }, { status: 401 });
+    }
     console.error("[sync] failed to list Box files", err);
     return NextResponse.json(
       { error: "Failed to list Box files. Check your Box token/connection." },

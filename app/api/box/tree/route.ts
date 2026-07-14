@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFolderTree, type TreeNode } from "@/lib/box";
+import { BoxAuthError, getFolderTree, type TreeNode } from "@/lib/box";
 import {
   getAllFileStatuses,
   setFileStatus,
@@ -39,6 +39,11 @@ export async function GET(req: NextRequest) {
   try {
     tree = await getFolderTree(boxUserId, "0");
   } catch (err) {
+    // Dead Box grant → 401 so the extension drops its session and re-runs
+    // OAuth; transient Box failures stay 502 (no forced logout on an outage).
+    if (err instanceof BoxAuthError) {
+      return NextResponse.json({ error: "box_disconnected" }, { status: 401 });
+    }
     console.error("[tree] failed to list Box folder", err);
     return NextResponse.json(
       { error: "Failed to list Box folder. Check your Box connection." },

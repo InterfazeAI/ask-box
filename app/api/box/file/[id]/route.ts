@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteBoxFile } from "@/lib/box";
+import { BoxAuthError, deleteBoxFile } from "@/lib/box";
 import { removeFileStatus } from "@/lib/redis";
 import { deleteFileChunks } from "@/lib/vector";
 import { resolveBoxUserId } from "@/lib/session";
@@ -26,6 +26,9 @@ export async function DELETE(
     await removeFileStatus(boxUserId, id);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof BoxAuthError) {
+      return NextResponse.json({ error: "box_disconnected" }, { status: 401 });
+    }
     console.error(`[file] delete failed for ${id}`, err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "delete failed" },

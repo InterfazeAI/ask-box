@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createBoxFolder } from "@/lib/box";
+import { BoxAuthError, createBoxFolder } from "@/lib/box";
 import { resolveBoxUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
     const folder = await createBoxFolder(boxUserId, parentId, name);
     return NextResponse.json({ ok: true, folder });
   } catch (err) {
+    if (err instanceof BoxAuthError) {
+      return NextResponse.json({ error: "box_disconnected" }, { status: 401 });
+    }
     console.error("[folder] create failed", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "create failed" },

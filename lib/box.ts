@@ -1,7 +1,8 @@
 import { BoxClient, BoxDeveloperTokenAuth } from "box-typescript-sdk-gen";
 import { AuthorizationManager } from "box-typescript-sdk-gen/managers";
+import type { BoxApiError } from "box-typescript-sdk-gen/box/errors";
 import { readByteStream } from "box-typescript-sdk-gen/internal";
-import { getBoxTokens, setBoxTokens, type BoxTokens } from "@/lib/redis";
+import { getBoxTokens, setBoxTokens, clearBoxTokens, type BoxTokens } from "@/lib/redis";
 import { collectFiles, type BoxFile, type BoxItem } from "@/lib/sync";
 
 export function getAuthorizeUrl(state: string): string {
@@ -71,20 +72,62 @@ export async function getBoxUserId(accessToken: string): Promise<string> {
   return me.id;
 }
 
+/**
+ * The user's Box grant is gone — revoked in Box, or the refresh token expired.
+ * Distinct from a transient Box failure: routes map this to a 401 so clients
+ * drop their session and re-run OAuth, instead of retrying forever against a
+ * dead grant.
+ */
+export class BoxAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BoxAuthError";
+  }
+}
+
+/**
+ * Box's token endpoint answers 400 (invalid_grant) or 401 when the refresh
+ * token is dead. Anything else (5xx, network) is transient — not a revocation.
+ *
+ * Duck-typed rather than `instanceof BoxApiError`: the SDK's ESM build wipes
+ * `responseInfo` to undefined in the constructor (class-field define semantics
+ * clobber the base class's Object.assign), and dual CJS/ESM builds make
+ * instanceof unreliable. The status code is always in the message
+ * ("400 invalid_grant; Request ID: …"), so fall back to parsing it there.
+ */
+function isRefreshRevoked(err: unknown): boolean {
+  if (!(err instanceof Error) || err.name !== "BoxApiError") return false;
+  const status =
+    (err as BoxApiError).responseInfo?.statusCode ??
+    Number(/^(\d{3})\s/.exec(err.message)?.[1]);
+  return status === 400 || status === 401;
+}
+
 export async function getValidAccessToken(boxUserId: string): Promise<string> {
   const tokens = await getBoxTokens(boxUserId);
   if (!tokens) {
-    throw new Error("No Box tokens found. Complete the OAuth flow first.");
+    throw new BoxAuthError("No Box tokens found. Complete the OAuth flow first.");
   }
   if (Date.now() <= tokens.expiresAt - 60_000) {
     return tokens.accessToken;
   }
-  const refreshed = await authorizationManager.refreshAccessToken({
-    grantType: "refresh_token",
-    clientId: process.env.BOX_CLIENT_ID!,
-    clientSecret: process.env.BOX_CLIENT_SECRET!,
-    refreshToken: tokens.refreshToken,
-  });
+  let refreshed;
+  try {
+    refreshed = await authorizationManager.refreshAccessToken({
+      grantType: "refresh_token",
+      clientId: process.env.BOX_CLIENT_ID!,
+      clientSecret: process.env.BOX_CLIENT_SECRET!,
+      refreshToken: tokens.refreshToken,
+    });
+  } catch (err) {
+    if (isRefreshRevoked(err)) {
+      // Dead grant: drop the tokens so every caller gets a clean BoxAuthError
+      // (→ 401 → reconnect) instead of re-attempting a doomed refresh.
+      await clearBoxTokens(boxUserId);
+      throw new BoxAuthError("Box rejected the refresh token — access was revoked or expired.");
+    }
+    throw err;
+  }
   const newTokens: BoxTokens = {
     accessToken: refreshed.accessToken!,
     refreshToken: refreshed.refreshToken ?? tokens.refreshToken,
