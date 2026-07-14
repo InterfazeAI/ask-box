@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "description": "Chat with your Box knowledge base from any tab.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAn8qfqFb60mkzb26DUKN7CeWF3fVc3Iuv25MsTcGmeT3Z9rLJrbNb8QatVyeIdYeponz6XI86lJaiZ6/bHOKy+cqiJbf5rL1ON1iWf/Gr/HPerSLIYUUbl/BJe1EzBPx4xJmUUKDvndg1cHawx+2XGqVWAc5LN7nqwLyniQja48vsNJGkeYKlJSEPOxHHNJ18P4cnjyiotk11BDMVBenftVovu7d+PkkgwGxsA8JSd49JMF3YA4bCpGfgTU36as00ybFv9AHbg1Ds5j+0vODiNubF9jemmM/XbPtScKWdBFevAfIYwjlII+/wFf3euVn5JgL4AAjqMSDhY7nwLk13gwIDAQAB",
-  "permissions": ["storage", "identity", "sidePanel", "scripting"],
-  "host_permissions": ["http://*/*", "https://*/*"],
+  "permissions": ["storage", "identity", "sidePanel", "scripting", "activeTab"],
+  "host_permissions": ["https://box-demo.interfaze.ai/*"],
   "action": {
     "default_title": "Ask Box",
     "default_popup": "popup.html",
@@ -23,12 +23,5 @@
     "128": "icon128.png"
   },
   "side_panel": { "default_path": "index.html" },
-  "background": { "service_worker": "background.js", "type": "module" },
-  "content_scripts": [
-    {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["detect.js"],
-      "run_at": "document_idle"
-    }
-  ]
+  "background": { "service_worker": "background.js", "type": "module" }
 }

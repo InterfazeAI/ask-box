@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { getStoredSid, setStoredSid, clearStoredSid } from "./storage";
+import {
+  getStoredSid,
+  setStoredSid,
+  clearStoredSid,
+  getDisplayMode,
+  getStoredDisplayMode,
+  setDisplayMode,
+} from "./storage";
 
 function mockChromeStorage() {
   const make = () => {
@@ -38,5 +45,33 @@ describe("sid storage", () => {
     await setStoredSid("bare.sig");
     await clearStoredSid();
     expect(await getStoredSid()).toBeNull();
+  });
+});
+
+describe("display mode storage", () => {
+  beforeEach(() => {
+    (globalThis as unknown as { chrome: unknown }).chrome = {
+      storage: mockChromeStorage(),
+    };
+  });
+
+  it("getStoredDisplayMode returns null before detection or user choice", async () => {
+    expect(await getStoredDisplayMode()).toBeNull();
+  });
+
+  it("getDisplayMode defaults to popup (the Arc-safe mode)", async () => {
+    expect(await getDisplayMode()).toBe("popup");
+  });
+
+  it("round-trips a mode", async () => {
+    await setDisplayMode("sidepanel");
+    expect(await getStoredDisplayMode()).toBe("sidepanel");
+    expect(await getDisplayMode()).toBe("sidepanel");
+  });
+
+  it("ignores junk stored values", async () => {
+    await chrome.storage.local.set({ askbox_display: "garbage" });
+    expect(await getStoredDisplayMode()).toBeNull();
+    expect(await getDisplayMode()).toBe("popup");
   });
 });

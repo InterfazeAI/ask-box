@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",
+    "package": "vite build && node -e \"const fs=require('fs');const m=JSON.parse(fs.readFileSync('dist/manifest.json','utf8'));delete m.key;fs.writeFileSync('dist/manifest.json',JSON.stringify(m,null,2)+'\\n')\" && rm -f dist-store.zip && cd dist && zip -rq ../dist-store.zip .",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

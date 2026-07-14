@@ -19,15 +19,11 @@ export default defineConfig({
         sidepanel: path.resolve(__dirname, "index.html"),
         popup: path.resolve(__dirname, "popup.html"),
         background: path.resolve(__dirname, "src/background.ts"),
-        detect: path.resolve(__dirname, "src/detect.ts"),
       },
       output: {
-        // Keep the service worker + content script at stable paths the manifest
-        // references.
+        // Keep the service worker at a stable path the manifest references.
         entryFileNames: (chunk) =>
-          chunk.name === "background" || chunk.name === "detect"
-            ? `${chunk.name}.js`
-            : "assets/[name]-[hash].js",
+          chunk.name === "background" ? `${chunk.name}.js` : "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },
