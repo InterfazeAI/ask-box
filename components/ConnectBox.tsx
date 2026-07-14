@@ -13,8 +13,13 @@ export default function ConnectBox() {
       .then((r) => r.json())
       .then((d) => active && setConnected(!!d.connected))
       .catch(() => active && setConnected(false));
+    // FolderTree's poll discovers a dead Box grant (401) — flip to "Connect
+    // Box" live instead of staying green until a reload.
+    const onDisconnected = () => active && setConnected(false);
+    window.addEventListener("box:disconnected", onDisconnected);
     return () => {
       active = false;
+      window.removeEventListener("box:disconnected", onDisconnected);
     };
   }, []);
 

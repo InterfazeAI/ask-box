@@ -326,9 +326,13 @@ export default function FolderTree() {
     try {
       const res = await fetch("/api/box/tree", { cache: "no-store" });
       if (!res.ok) {
-        // 502 = the tree route couldn't reach Box, which in practice means the
-        // account isn't connected. Surface that instead of spinning forever.
-        if (res.status === 502 && mounted.current) setBoxConnected(false);
+        // 401 = no session or the Box grant died (revoked/expired) — show the
+        // connect state and tell the nav pill. 502 is transient (Box outage),
+        // so keep the last good tree and let the next poll retry.
+        if (res.status === 401 && mounted.current) {
+          setBoxConnected(false);
+          window.dispatchEvent(new Event("box:disconnected"));
+        }
         return;
       }
       const data = (await res.json()) as { tree?: TreeNode[]; statuses?: FileStatus[] };
