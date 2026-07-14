@@ -103,14 +103,7 @@ function isRefreshRevoked(err: unknown): boolean {
   return status === 400 || status === 401;
 }
 
-export async function getValidAccessToken(boxUserId: string): Promise<string> {
-  const tokens = await getBoxTokens(boxUserId);
-  if (!tokens) {
-    throw new BoxAuthError("No Box tokens found. Complete the OAuth flow first.");
-  }
-  if (Date.now() <= tokens.expiresAt - 60_000) {
-    return tokens.accessToken;
-  }
+async function refreshTokens(boxUserId: string, tokens: BoxTokens): Promise<BoxTokens> {
   let refreshed;
   try {
     refreshed = await authorizationManager.refreshAccessToken({
@@ -134,7 +127,56 @@ export async function getValidAccessToken(boxUserId: string): Promise<string> {
     expiresAt: Date.now() + (refreshed.expiresIn ?? 0) * 1000,
   };
   await setBoxTokens(boxUserId, newTokens);
-  return newTokens.accessToken;
+  return newTokens;
+}
+
+export async function getValidAccessToken(boxUserId: string): Promise<string> {
+  const tokens = await getBoxTokens(boxUserId);
+  if (!tokens) {
+    throw new BoxAuthError("No Box tokens found. Complete the OAuth flow first.");
+  }
+  if (Date.now() <= tokens.expiresAt - 60_000) {
+    return tokens.accessToken;
+  }
+  return (await refreshTokens(boxUserId, tokens)).accessToken;
+}
+
+/**
+ * Revocation kills the access token IMMEDIATELY, while its stored expiresAt is
+ * still in the future — so getValidAccessToken happily returns a dead token and
+ * the failure surfaces mid-API-call instead of at the token endpoint. Two
+ * shapes: SDK calls (BoxDeveloperTokenAuth can't refresh, so the SDK's retry
+ * layer throws BoxSdkError "Developer token has expired"), and our raw-fetch
+ * helpers ("Box … failed (401): …").
+ */
+function isExpiredAccessToken(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    (err.name === "BoxSdkError" && /developer token has expired/i.test(err.message)) ||
+    /\(401\)/.test(err.message)
+  );
+}
+
+/**
+ * Run a Box operation; on an in-flight 401 force a refresh at the token
+ * endpoint (ignoring expiresAt) and retry ONCE with the fresh token. A rejected
+ * refresh means the grant is dead → BoxAuthError (tokens already cleared), so
+ * routes answer 401 and clients reconnect. Operations must be safe to re-run.
+ */
+export async function withFreshTokenRetry<T>(
+  boxUserId: string,
+  fn: (accessToken: string) => Promise<T>,
+): Promise<T> {
+  const token = await getValidAccessToken(boxUserId);
+  try {
+    return await fn(token);
+  } catch (err) {
+    if (!isExpiredAccessToken(err)) throw err;
+    const tokens = await getBoxTokens(boxUserId);
+    if (!tokens) throw new BoxAuthError("No Box tokens found. Complete the OAuth flow first.");
+    const fresh = await refreshTokens(boxUserId, tokens);
+    return fn(fresh.accessToken);
+  }
 }
 
 const MAX_FILE_BYTES = Number(process.env.MAX_FILE_MB ?? 25) * 1024 * 1024;
@@ -143,27 +185,28 @@ export async function downloadFile(
   boxUserId: string,
   fileId: string,
 ): Promise<{ name: string; buffer: Buffer }> {
-  const accessToken = await getValidAccessToken(boxUserId);
-  const client = clientFromAccessToken(accessToken);
+  return withFreshTokenRetry(boxUserId, async (accessToken) => {
+    const client = clientFromAccessToken(accessToken);
 
-  // Fetch metadata first and reject oversized files BEFORE pulling bytes into
-  // memory — protects against OOM and Interfaze request-size/timeout failures.
-  const file = await client.files.getFileById(fileId);
-  const size = Number(file.size ?? 0);
-  if (size > MAX_FILE_BYTES) {
-    throw new Error(
-      `File too large to process: ${(size / 1024 / 1024).toFixed(1)} MB ` +
-        `(max ${(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)} MB)`,
-    );
-  }
+    // Fetch metadata first and reject oversized files BEFORE pulling bytes into
+    // memory — protects against OOM and Interfaze request-size/timeout failures.
+    const file = await client.files.getFileById(fileId);
+    const size = Number(file.size ?? 0);
+    if (size > MAX_FILE_BYTES) {
+      throw new Error(
+        `File too large to process: ${(size / 1024 / 1024).toFixed(1)} MB ` +
+          `(max ${(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)} MB)`,
+      );
+    }
 
-  const stream = await client.downloads.downloadFile(fileId);
-  if (!stream) {
-    throw new Error(`Box returned no content for file ${fileId}`);
-  }
+    const stream = await client.downloads.downloadFile(fileId);
+    if (!stream) {
+      throw new Error(`Box returned no content for file ${fileId}`);
+    }
 
-  const buffer = await readByteStream(stream);
-  return { name: file.name ?? fileId, buffer };
+    const buffer = await readByteStream(stream);
+    return { name: file.name ?? fileId, buffer };
+  });
 }
 
 /**
@@ -177,25 +220,26 @@ export async function listFolderFilesRecursive(
   boxUserId: string,
   rootFolderId: string,
 ): Promise<BoxFile[]> {
-  const accessToken = await getValidAccessToken(boxUserId);
-  const client = clientFromAccessToken(accessToken);
+  return withFreshTokenRetry(boxUserId, async (accessToken) => {
+    const client = clientFromAccessToken(accessToken);
 
-  const listPage = async (folderId: string, offset: number) => {
-    const res = await client.folders.getFolderItems(folderId, {
-      queryParams: { offset, limit: 1000 },
-    });
-    const items: BoxItem[] = (res.entries ?? []).map((e) => {
-      const entry = e as { type?: string; id?: string; name?: string };
-      return {
-        type: entry.type ?? "",
-        id: entry.id ?? "",
-        name: entry.name ?? entry.id ?? "",
-      };
-    });
-    return { items, totalCount: res.totalCount ?? items.length };
-  };
+    const listPage = async (folderId: string, offset: number) => {
+      const res = await client.folders.getFolderItems(folderId, {
+        queryParams: { offset, limit: 1000 },
+      });
+      const items: BoxItem[] = (res.entries ?? []).map((e) => {
+        const entry = e as { type?: string; id?: string; name?: string };
+        return {
+          type: entry.type ?? "",
+          id: entry.id ?? "",
+          name: entry.name ?? entry.id ?? "",
+        };
+      });
+      return { items, totalCount: res.totalCount ?? items.length };
+    };
 
-  return collectFiles(listPage, rootFolderId);
+    return collectFiles(listPage, rootFolderId);
+  });
 }
 
 export type TreeFile = { type: "file"; id: string; name: string };
@@ -217,44 +261,45 @@ export async function getFolderTree(
   boxUserId: string,
   rootFolderId: string,
 ): Promise<TreeNode[]> {
-  const accessToken = await getValidAccessToken(boxUserId);
-  const client = clientFromAccessToken(accessToken);
+  return withFreshTokenRetry(boxUserId, async (accessToken) => {
+    const client = clientFromAccessToken(accessToken);
 
-  async function walk(folderId: string, depth: number): Promise<TreeNode[]> {
-    const nodes: TreeNode[] = [];
-    let offset = 0;
-    for (;;) {
-      const res = await client.folders.getFolderItems(folderId, {
-        queryParams: { offset, limit: 1000 },
-      });
-      const entries = res.entries ?? [];
-      for (const e of entries) {
-        const entry = e as { type?: string; id?: string; name?: string };
-        if (!entry.id) continue;
-        if (entry.type === "folder") {
-          nodes.push({
-            type: "folder",
-            id: entry.id,
-            name: entry.name ?? entry.id,
-            children: depth < 8 ? await walk(entry.id, depth + 1) : [],
-          });
-        } else if (entry.type === "file") {
-          nodes.push({ type: "file", id: entry.id, name: entry.name ?? entry.id });
+    async function walk(folderId: string, depth: number): Promise<TreeNode[]> {
+      const nodes: TreeNode[] = [];
+      let offset = 0;
+      for (;;) {
+        const res = await client.folders.getFolderItems(folderId, {
+          queryParams: { offset, limit: 1000 },
+        });
+        const entries = res.entries ?? [];
+        for (const e of entries) {
+          const entry = e as { type?: string; id?: string; name?: string };
+          if (!entry.id) continue;
+          if (entry.type === "folder") {
+            nodes.push({
+              type: "folder",
+              id: entry.id,
+              name: entry.name ?? entry.id,
+              children: depth < 8 ? await walk(entry.id, depth + 1) : [],
+            });
+          } else if (entry.type === "file") {
+            nodes.push({ type: "file", id: entry.id, name: entry.name ?? entry.id });
+          }
         }
+        offset += entries.length;
+        if (entries.length === 0 || offset >= (res.totalCount ?? entries.length)) break;
       }
-      offset += entries.length;
-      if (entries.length === 0 || offset >= (res.totalCount ?? entries.length)) break;
+      return nodes.sort((a, b) =>
+        a.type !== b.type
+          ? a.type === "folder"
+            ? -1
+            : 1
+          : a.name.localeCompare(b.name),
+      );
     }
-    return nodes.sort((a, b) =>
-      a.type !== b.type
-        ? a.type === "folder"
-          ? -1
-          : 1
-        : a.name.localeCompare(b.name),
-    );
-  }
 
-  return walk(rootFolderId, 0);
+    return walk(rootFolderId, 0);
+  });
 }
 
 /** Upload a file into a Box folder. Returns the new Box file id. */
@@ -264,40 +309,42 @@ export async function uploadFileToBox(
   name: string,
   bytes: ArrayBuffer,
 ): Promise<{ id: string; name: string }> {
-  const token = await getValidAccessToken(boxUserId);
-  const form = new FormData();
-  form.append(
-    "attributes",
-    JSON.stringify({ name, parent: { id: parentId } }),
-  );
-  form.append("file", new Blob([bytes]), name);
+  return withFreshTokenRetry(boxUserId, async (token) => {
+    const form = new FormData();
+    form.append(
+      "attributes",
+      JSON.stringify({ name, parent: { id: parentId } }),
+    );
+    form.append("file", new Blob([bytes]), name);
 
-  const res = await fetch("https://upload.box.com/api/2.0/files/content", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
+    const res = await fetch("https://upload.box.com/api/2.0/files/content", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!res.ok) {
+      throw new Error(`Box upload failed (${res.status}): ${await res.text()}`);
+    }
+    const data = (await res.json()) as {
+      entries?: { id: string; name: string }[];
+    };
+    const entry = data.entries?.[0];
+    if (!entry) throw new Error("Box upload returned no file");
+    return { id: entry.id, name: entry.name };
   });
-  if (!res.ok) {
-    throw new Error(`Box upload failed (${res.status}): ${await res.text()}`);
-  }
-  const data = (await res.json()) as {
-    entries?: { id: string; name: string }[];
-  };
-  const entry = data.entries?.[0];
-  if (!entry) throw new Error("Box upload returned no file");
-  return { id: entry.id, name: entry.name };
 }
 
 /** Delete a Box file (moves it to trash). Treats 404 as already-gone. */
 export async function deleteBoxFile(boxUserId: string, fileId: string): Promise<void> {
-  const token = await getValidAccessToken(boxUserId);
-  const res = await fetch(`https://api.box.com/2.0/files/${fileId}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
+  return withFreshTokenRetry(boxUserId, async (token) => {
+    const res = await fetch(`https://api.box.com/2.0/files/${fileId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Box delete failed (${res.status}): ${await res.text()}`);
+    }
   });
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Box delete failed (${res.status}): ${await res.text()}`);
-  }
 }
 
 /** Create a subfolder in Box. Returns the new folder id. */
@@ -306,18 +353,19 @@ export async function createBoxFolder(
   parentId: string,
   name: string,
 ): Promise<{ id: string; name: string }> {
-  const token = await getValidAccessToken(boxUserId);
-  const res = await fetch("https://api.box.com/2.0/folders", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name, parent: { id: parentId } }),
+  return withFreshTokenRetry(boxUserId, async (token) => {
+    const res = await fetch("https://api.box.com/2.0/folders", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name, parent: { id: parentId } }),
+    });
+    if (!res.ok) {
+      throw new Error(`Box folder create failed (${res.status}): ${await res.text()}`);
+    }
+    const data = (await res.json()) as { id: string; name: string };
+    return { id: data.id, name: data.name };
   });
-  if (!res.ok) {
-    throw new Error(`Box folder create failed (${res.status}): ${await res.text()}`);
-  }
-  const data = (await res.json()) as { id: string; name: string };
-  return { id: data.id, name: data.name };
 }

@@ -14,8 +14,9 @@ vi.mock("@/lib/redis", () => ({
   clearBoxTokens: vi.fn(),
 }));
 
-import { getValidAccessToken, BoxAuthError } from "@/lib/box";
+import { getValidAccessToken, withFreshTokenRetry, BoxAuthError } from "@/lib/box";
 import { getBoxTokens, setBoxTokens, clearBoxTokens } from "@/lib/redis";
+import { BoxSdkError } from "box-typescript-sdk-gen/box/errors";
 
 // Mirrors what the SDK's networking layer actually throws: message is
 // "<status> <text>; Request ID: <id>", and in the ESM build `responseInfo`
@@ -77,5 +78,59 @@ describe("getValidAccessToken", () => {
     refreshMock.mockRejectedValue(new Error("fetch failed"));
     await expect(getValidAccessToken("u1")).rejects.toThrow("fetch failed");
     expect(clearBoxTokens).not.toHaveBeenCalled();
+  });
+});
+
+// What BoxDeveloperTokenAuth throws when a Box API call gets an in-flight 401
+// (revocation kills the access token before its expiresAt): the SDK retry
+// layer asks the auth provider to refresh, which a developer-token auth can't.
+function devTokenExpired(): BoxSdkError {
+  return new BoxSdkError({
+    message: "Developer token has expired. Please provide a new one.",
+  });
+}
+
+describe("withFreshTokenRetry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getBoxTokens).mockResolvedValue(fresh);
+  });
+
+  it("returns the result without refreshing when the call succeeds", async () => {
+    const fn = vi.fn().mockResolvedValue("ok");
+    await expect(withFreshTokenRetry("u1", fn)).resolves.toBe("ok");
+    expect(fn).toHaveBeenCalledWith("at");
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("force-refreshes on an in-flight 401 and retries once with the new token", async () => {
+    refreshMock.mockResolvedValue({ accessToken: "new", refreshToken: "rt2", expiresIn: 3600 });
+    const fn = vi.fn().mockRejectedValueOnce(devTokenExpired()).mockResolvedValue("ok");
+    await expect(withFreshTokenRetry("u1", fn)).resolves.toBe("ok");
+    expect(fn).toHaveBeenNthCalledWith(2, "new");
+  });
+
+  it("maps in-flight 401 + rejected refresh to BoxAuthError (revoked grant)", async () => {
+    refreshMock.mockRejectedValue(apiError(400));
+    const fn = vi.fn().mockRejectedValue(devTokenExpired());
+    await expect(withFreshTokenRetry("u1", fn)).rejects.toBeInstanceOf(BoxAuthError);
+    expect(clearBoxTokens).toHaveBeenCalledWith("u1");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("also treats our raw-fetch helpers' 401s as an expired access token", async () => {
+    refreshMock.mockResolvedValue({ accessToken: "new", refreshToken: "rt2", expiresIn: 3600 });
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Box upload failed (401): unauthorized"))
+      .mockResolvedValue("ok");
+    await expect(withFreshTokenRetry("u1", fn)).resolves.toBe("ok");
+  });
+
+  it("rethrows non-auth errors without refreshing or retrying", async () => {
+    const fn = vi.fn().mockRejectedValue(new Error("Box upload failed (503): down"));
+    await expect(withFreshTokenRetry("u1", fn)).rejects.toThrow("(503)");
+    expect(refreshMock).not.toHaveBeenCalled();
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });
