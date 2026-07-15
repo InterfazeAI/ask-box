@@ -1,3 +1,4 @@
+import Link from "next/link";
 import ConnectBox from "@/components/ConnectBox";
 import FolderTree from "@/components/FolderTree";
 import ChatPanel from "@/components/ChatPanel";
@@ -35,10 +36,18 @@ export default function Home() {
         </div>
       </nav>
       {/* ── Workspace ────────────────────────────────────────────── */}
-      <section className="mx-auto grid max-w-6xl grid-cols-1 items-stretch gap-6 px-6 pb-24 pt-10 lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="mx-auto grid max-w-6xl grid-cols-1 items-stretch gap-6 px-6 pb-16 pt-10 lg:grid-cols-[1.05fr_0.95fr]">
         <FolderTree />
         <ChatPanel />
       </section>
+      <footer className="mx-auto flex max-w-6xl items-center gap-4 px-6 pb-10 font-mono text-[11px] text-zinc-600">
+        <Link href="/privacy" className="transition-colors hover:text-zinc-400">
+          Privacy Policy
+        </Link>
+        <Link href="/terms" className="transition-colors hover:text-zinc-400">
+          Terms of Use
+        </Link>
+      </footer>
     </main>
   );
 }

@@ -28,6 +28,12 @@ export async function deleteFileChunks(userId: string, fileId: string): Promise<
   await ns(userId).delete({ prefix: `${fileId}:` }).catch(() => {});
 }
 
+/** Wipe an account's entire index (all chunks in its namespace) — used when the
+ *  user disconnects Box, so no document content outlives the connection. */
+export async function deleteAllChunks(userId: string): Promise<void> {
+  await ns(userId).reset().catch(() => {});
+}
+
 export type ScoredChunk = ChunkMeta & { score: number };
 
 export async function queryTopK(
