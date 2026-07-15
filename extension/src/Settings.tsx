@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BASE_URL, getDisplayMode, setDisplayMode, type DisplayMode } from "./storage";
+import { getDisplayMode, setDisplayMode, type DisplayMode } from "./storage";
 
 export default function Settings({ onDisconnect }: { onDisconnect: () => void }) {
   const [mode, setMode] = useState<DisplayMode | null>(null);
@@ -15,12 +15,6 @@ export default function Settings({ onDisconnect }: { onDisconnect: () => void })
 
   return (
     <div className="flex flex-1 flex-col gap-3 p-4">
-      <div>
-        <p className="text-sm font-medium text-zinc-100">Backend</p>
-        <p className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
-          {BASE_URL.replace(/^https?:\/\//, "")}
-        </p>
-      </div>
       <div>
         <p className="text-sm font-medium text-zinc-100">Open as</p>
         <div className="mt-1.5 flex gap-1 rounded-md border border-white/10 p-0.5">
