@@ -7,4 +7,12 @@ node_modules/
 tsconfig.tsbuildinfo
 .claude/
 extension/dist/
+extension/dist*.zip
 extension/.keys/
+
+# OS / editor cruft
+.DS_Store
+
+# Local sample/test uploads
+test_upload*/
+test_upload*.zip

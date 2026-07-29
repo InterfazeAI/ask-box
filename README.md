@@ -1,8 +1,31 @@
-# Box Demo
+# 📦 Box Demo
 
-A Next.js chatbot that syncs documents from Box and provides grounded Q&A over them. Files uploaded to your Box account flow through Interfaze (OCR extraction), JigsawStack (embeddings), and Upstash Vector (semantic search), with live UI status updates via Redis pub/sub.
+A Next.js chatbot that syncs documents from [Box](https://box.com) and gives you grounded, cited Q&A over them — powered by Interfaze OCR, JigsawStack embeddings, and Upstash Vector.
 
-## Architecture
+[Interfaze](https://interfaze.ai) · [Interfaze Docs](https://docs.interfaze.ai) · [JigsawStack](https://jigsawstack.com) · [Dashboard](https://jigsawstack.com) · [Chrome Extension](#-chrome-extension--ask-box)
+
+<!-- Add a screenshot or demo GIF at ./public/screenshot.png (the extension store frames in
+     extension/store/screenshot-*.png are good candidates, or capture the main app UI). -->
+![Box Demo](./public/screenshot.png)
+
+Drop a file into your Box account and watch it flow — automatically — through OCR, chunking, embedding, and indexing, with the UI updating live at every step. Then ask questions and get answers grounded in your own documents, streamed token by token.
+
+Most "chat with your docs" demos make you manually upload files. This one wires directly into Box: the moment a file lands in your account, a webhook kicks off the pipeline and the document becomes searchable — no manual import step.
+
+## ✨ Key Features
+
+- 📤 **Zero-touch sync** — a Box `FILE.UPLOADED` webhook starts indexing automatically; no manual upload
+- 🔍 **OCR extraction** — [Interfaze](https://interfaze.ai) pulls text from PDFs, scans, and images
+- 🧠 **Semantic search** — [JigsawStack](https://jigsawstack.com) embeddings + [Upstash Vector](https://upstash.com) for top-k retrieval
+- 💬 **Grounded chat** — answers cited to your documents, streamed to the browser over SSE
+- ⚡ **Live status** — `Queued → Extracting → Embedding → Indexed`, pushed to the UI via Redis pub/sub
+- 🧩 **Chrome extension** — chat with your indexed Box docs from any tab (side panel)
+- 🔒 **Per-account isolation** — anonymous sessions keep each user's documents separate
+- 🚀 **One-click deploy** — ships to Vercel out of the box
+
+Powered by [Interfaze](https://interfaze.ai) and [JigsawStack](https://jigsawstack.com).
+
+## 🏗️ Architecture
 
 ```
 Box File Upload
@@ -24,14 +47,12 @@ Chat: User question
     └─ SSE stream to browser
 ```
 
----
-
-## Prerequisites
+## 🚀 Quick Start
 
 ### 1. Clone & Install
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/JigsawStack/box-demo.git
 cd box-demo
 npm install
 ```
@@ -125,9 +146,7 @@ APP_URL=https://your-project.vercel.app
 
 All environment variables must be set **before** running `npm run build` or `npm run dev`, because client modules (e.g., `lib/jigsawstack.ts`) read env vars at import time. A build with missing keys will fail at startup.
 
----
-
-## Run
+## 🏃 Run
 
 ```bash
 npm run dev
@@ -135,9 +154,15 @@ npm run dev
 
 Navigate to `http://localhost:3000`.
 
----
+## ☁️ One-Click Deploy
 
-## Demo Flow
+Deploy your own instance to Vercel:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FJigsawStack%2Fbox-demo&env=APP_URL,BOX_CLIENT_ID,BOX_CLIENT_SECRET,BOX_WEBHOOK_PRIMARY_KEY,BOX_WEBHOOK_SECONDARY_KEY,INTERFAZE_API_KEY,INTERFAZE_BASE_URL,JIGSAWSTACK_API_KEY,UPSTASH_VECTOR_REST_URL,UPSTASH_VECTOR_REST_TOKEN,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,QSTASH_TOKEN,QSTASH_CURRENT_SIGNING_KEY,QSTASH_NEXT_SIGNING_KEY,SESSION_SECRET)
+
+After deploying, set `APP_URL` to your Vercel URL and point your Box webhook + redirect URI at it.
+
+## 🎮 Demo Flow
 
 1. **Click "Connect Box"** in the top-right
    - You'll be redirected to Box login and asked to authorize the app
@@ -155,9 +180,7 @@ Navigate to `http://localhost:3000`.
 
 4. **Try uploading multiple files** to see them all indexed and searchable together in one session
 
----
-
-## Testing
+## 🧪 Testing
 
 Run all unit tests (chunk extraction, Redis status, Box signature validation, JigsawStack embedding parsing, context building):
 
@@ -171,25 +194,19 @@ Watch mode:
 npm run test:watch
 ```
 
----
-
-## Notes
+## 📝 Notes
 
 - **Interfaze model IDs** (`interfaze-ocr` in `lib/interfaze.ts` and `interfaze` in `app/api/chat/route.ts`) are placeholders. Verify against current [Interfaze docs](https://docs.interfaze.ai) before relying on them in production.
 - **Dimension mismatch error**: If you see a Vector dimension error, you likely created your Upstash Vector index at the wrong dimension. Run the snippet above to confirm your embedding size and recreate the index at the correct dimension.
 - **Webhook delivery**: Box webhooks may take a few seconds to deliver. If a file doesn't appear in the UI, check the QStash or Redis logs.
 
----
-
-## Troubleshooting
+## 🔧 Troubleshooting
 
 - **"Build failed: Cannot find module '@/lib/jigsawstack'"**: Set all env vars in `.env.local` before building.
 - **"403 - bad signature" on webhook**: Verify `BOX_WEBHOOK_PRIMARY_KEY` and `BOX_WEBHOOK_SECONDARY_KEY` match your Box app settings.
 - **"Vector dimension mismatch"**: Run the embedding size check above and recreate your Upstash Vector index at the correct dimension.
 
----
-
-## Stack
+## 🧱 Stack
 
 - **Next.js 15** — React framework
 - **Box SDK** — file management & webhooks
@@ -201,7 +218,7 @@ npm run test:watch
 - **Vercel AI SDK** — streaming chat responses
 - **Tailwind** — UI styling
 
-## Chrome Extension — Ask Box
+## 🧩 Chrome Extension — Ask Box
 
 A Chrome side-panel extension to chat with your indexed Box documents from any
 tab. It reuses this app's `/api/chat` backend and chat UI.
@@ -227,3 +244,7 @@ npm run build        # outputs extension/dist/
 
 Requires Chrome 114+ (Side Panel API). The backend URL is stored in
 `chrome.storage.sync`; switch it any time to point at a deployed instance.
+
+## 📄 License
+
+Released under the [MIT License](./LICENSE).
