@@ -52,7 +52,7 @@ Chat: User question
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/JigsawStack/box-demo.git
+git clone https://github.com/InterfazeAI/box-demo.git
 cd box-demo
 npm install
 ```
@@ -158,7 +158,7 @@ Navigate to `http://localhost:3000`.
 
 Deploy your own instance to Vercel:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FJigsawStack%2Fbox-demo&env=APP_URL,BOX_CLIENT_ID,BOX_CLIENT_SECRET,BOX_WEBHOOK_PRIMARY_KEY,BOX_WEBHOOK_SECONDARY_KEY,INTERFAZE_API_KEY,INTERFAZE_BASE_URL,JIGSAWSTACK_API_KEY,UPSTASH_VECTOR_REST_URL,UPSTASH_VECTOR_REST_TOKEN,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,QSTASH_TOKEN,QSTASH_CURRENT_SIGNING_KEY,QSTASH_NEXT_SIGNING_KEY,SESSION_SECRET)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FInterfazeAI%2Fbox-demo&env=APP_URL,BOX_CLIENT_ID,BOX_CLIENT_SECRET,BOX_WEBHOOK_PRIMARY_KEY,BOX_WEBHOOK_SECONDARY_KEY,INTERFAZE_API_KEY,INTERFAZE_BASE_URL,JIGSAWSTACK_API_KEY,UPSTASH_VECTOR_REST_URL,UPSTASH_VECTOR_REST_TOKEN,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,QSTASH_TOKEN,QSTASH_CURRENT_SIGNING_KEY,QSTASH_NEXT_SIGNING_KEY,SESSION_SECRET)
 
 After deploying, set `APP_URL` to your Vercel URL and point your Box webhook + redirect URI at it.
 
