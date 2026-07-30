@@ -2,7 +2,7 @@
 
 A chatbot that syncs documents from [Box](https://box.com) and gives you grounded, cited Q&A over them, powered by [Interfaze](https://interfaze.ai).
 
-[Interfaze](https://interfaze.ai) · [Docs](https://docs.interfaze.ai) · [Box](https://box.com) · [Chrome Extension](#-chrome-extension-ask-box)
+[Interfaze](https://interfaze.ai) · [Docs](https://docs.interfaze.ai) · [Box](https://box.com) · [Chrome Extension](https://chromewebstore.google.com/detail/ask-box/ndmhfnlkfpkdbfeofdflaaonleaniiie)
 
 <!-- Add a screenshot or demo GIF at ./public/screenshot.png (the extension store frames in
      extension/store/screenshot-*.png are good candidates, or capture the main app UI). -->
@@ -215,6 +215,8 @@ npm run test:watch
 
 A Chrome side-panel extension to chat with your indexed Box documents from any
 tab. It reuses this app's `/api/chat` backend and chat UI.
+
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/ask-box/ndmhfnlkfpkdbfeofdflaaonleaniiie)**, or build it from source below.
 
 ### Build & load
 
