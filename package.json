@@ -1,5 +1,5 @@
 {
-  "name": "box-demo",
+  "name": "ask-box",
   "private": true,
   "scripts": {
     "dev": "next dev",
